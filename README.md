@@ -18,16 +18,16 @@ MateOS includes:
 
 ## Short Install Command
 
-Once the CLI is published to npm, the short install command is:
+The short install command is:
 
 ```bash
-npx mateos
+npx @hamzaashergill/mateos
 ```
 
 Or install into a custom directory:
 
 ```bash
-npx mateos my-mateos
+npx @hamzaashergill/mateos my-mateos
 ```
 
 ## GitHub Install
@@ -47,12 +47,19 @@ Both install paths do the same bootstrap work:
 - applies the database schema
 - shows the MateOS terminal logo and next steps
 
+The npm CLI also supports:
+
+- terminal Brain chat
+- localhost startup for the full MateOS stack
+- Docker-optional setup when `DATABASE_URL` is already configured
+
 After install, MateOS also ships with a local CLI:
 
 ```bash
 cd MateOS
 node ./bin/mateos.mjs doctor
-node ./bin/mateos.mjs dev
+node ./bin/mateos.mjs localhost
+node ./bin/mateos.mjs brain
 ```
 
 ## Workspace Layout
@@ -112,8 +119,22 @@ Open [http://localhost:5173](http://localhost:5173).
 ### 7. Or start both with the MateOS CLI
 
 ```bash
-node ./bin/mateos.mjs dev
+node ./bin/mateos.mjs localhost
 ```
+
+### 8. Chat with the Brain from your terminal
+
+Start MateOS locally first, then open a second terminal:
+
+```bash
+cd MateOS
+node ./bin/mateos.mjs brain
+```
+
+Useful commands inside terminal Brain mode:
+
+- `/clear` clears Brain history
+- `/exit` leaves terminal Brain mode
 
 ## Authentication Modes
 

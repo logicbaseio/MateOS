@@ -1,6 +1,6 @@
 {
-  "name": "mateos",
-  "version": "0.1.0",
+  "name": "@hamzaashergill/mateos",
+  "version": "0.1.2",
   "license": "MIT",
   "type": "module",
   "description": "MateOS bootstrap CLI and open-source assistant operations platform",
@@ -20,11 +20,10 @@
     "reception",
     "scheduling"
   ],
-  "bin": {
-    "mateos": "./bin/mateos.mjs"
-  },
+  "bin": "mateos.js",
   "files": [
     "bin",
+    "mateos.js",
     "README.md",
     "LICENSE"
   ],
@@ -42,7 +41,7 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "devDependencies": {
-    "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
   }
 }
