@@ -275,7 +275,7 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-async function executeZaraTool(name: string, args: Record<string, unknown>, isBoss: boolean): Promise<string> {
+async function executeAssistantTool(name: string, args: Record<string, unknown>, isBoss: boolean): Promise<string> {
   try {
     if (isBoss) {
       switch (name) {
@@ -597,7 +597,7 @@ export function handleTwilioHumeBridge(twilioWs: WebSocket, callerPhone = ""): v
       let toolArgs: Record<string, unknown> = {};
       try { toolArgs = JSON.parse(rawParams) as Record<string, unknown>; } catch { /* ignore */ }
       console.log(`[hume-bridge] Tool call: ${toolName}`, toolArgs);
-      void executeZaraTool(toolName, toolArgs, isBoss).then(result => {
+      void executeAssistantTool(toolName, toolArgs, isBoss).then(result => {
         console.log(`[hume-bridge] Tool result for ${toolName}:`, result.slice(0, 120));
         if (humeWs && humeWs.readyState === WebSocket.OPEN) {
           humeWs.send(JSON.stringify({

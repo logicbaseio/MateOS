@@ -18,7 +18,7 @@ import {
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getLLMClient } from "../lib/llm";
-import { deliverMessageToSunny } from "../lib/messenger";
+import { deliverMessageToBoss } from "../lib/messenger";
 import { getValidToken, graphGet, graphPost } from "../routes/microsoft";
 import { postAlertToTeamsChannel } from "../lib/teamsNotifier";
 import { generateBossPersona, schedulePersonaRefresh } from "./persona";
@@ -60,6 +60,8 @@ export async function loadNames(): Promise<{ bossName: string; botName: string }
     return { bossName: "Owner", botName: "Mate" };
   }
 }
+
+const BOSS_NOTIFICATION_TOOL_NAMES = new Set(["notify_boss", "notify_sunny"]);
 
 // Known historical bot names that may appear in old session history or soul files.
 // Any of these will be replaced with the current live botName.
@@ -154,7 +156,7 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "submit_meeting_request",
-      description: "Create a meeting request in MateOS. Use when a customer/caller wants time with Sunny and you have their name, purpose, and preferred date/time.",
+      description: "Create a meeting request in MateOS. Use when a customer or caller wants time with the boss and you have their name, purpose, and preferred date/time.",
       parameters: {
         type: "object",
         properties: {
@@ -187,7 +189,7 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "get_preferences",
-      description: "Read Sunny's current scheduling preferences (timezone, mood, max meetings, etc.)",
+      description: "Read the boss's current scheduling preferences (timezone, mood, max meetings, etc.)",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -195,7 +197,7 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "update_preferences",
-      description: "Update ANY of Sunny's system preferences — scheduling, voice notes, ElevenLabs TTS, Telegram Brain channel, or Zara's tool permissions. Always call get_preferences first so you only update what changed. Covers ALL configurable settings in MateOS.",
+      description: "Update ANY of the boss's system preferences — scheduling, voice notes, ElevenLabs TTS, Telegram Brain channel, or the assistant's tool permissions. Always call get_preferences first so you only update what changed. Covers ALL configurable settings in MateOS.",
       parameters: {
         type: "object",
         properties: {
@@ -211,11 +213,11 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
           meetingDurationMinutes: { type: "number", description: "Default meeting duration in minutes" },
           breakBetweenMeetings: { type: "number", description: "Minimum break between meetings in minutes" },
           notes: { type: "string", description: "Free-form scheduling notes or special instructions" },
-          bossPhone: { type: "string", description: "Sunny's phone number in E.164 format (e.g. +12125551234). Zara uses this to detect boss vs customer calls." },
-          bossTools: { type: "string", description: "Comma-separated list of tools Zara can use in Boss mode. Options: calendar,email,teams,meeting_requests,preferences" },
-          customerTools: { type: "string", description: "Comma-separated list of tools Zara can use in Customer mode. Options: submit_meeting_request" },
-          voiceNoteVoiceId: { type: "string", description: "ElevenLabs voice ID for Zara's voice notes. Leave empty to use the agent's default." },
-          voiceNoteInstructions: { type: "string", description: "Speaking style instructions for Zara's TTS voice (e.g. 'speak slowly and warmly')." },
+          bossPhone: { type: "string", description: "The boss's phone number in E.164 format (e.g. +12125551234). The assistant uses this to detect boss vs customer calls." },
+          bossTools: { type: "string", description: "Comma-separated list of tools the assistant can use in Boss mode. Options: calendar,email,teams,meeting_requests,preferences" },
+          customerTools: { type: "string", description: "Comma-separated list of tools the assistant can use in Customer mode. Options: submit_meeting_request" },
+          voiceNoteVoiceId: { type: "string", description: "ElevenLabs voice ID for the assistant's voice notes. Leave empty to use the agent's default." },
+          voiceNoteInstructions: { type: "string", description: "Speaking style instructions for the assistant's TTS voice (e.g. 'speak slowly and warmly')." },
           voiceNoteStability: { type: "number", description: "ElevenLabs stability (0.0–1.0). Higher = more consistent, lower = more expressive." },
           voiceNoteSimilarityBoost: { type: "number", description: "ElevenLabs similarity boost (0.0–1.0). Higher = closer to the original voice." },
           voiceNoteStyle: { type: "number", description: "ElevenLabs style exaggeration (0.0–1.0). Higher = more stylistic." },
@@ -1367,7 +1369,7 @@ When a customer conversation is genuinely stuck and cannot proceed without Sunny
 
 **When NOT to use call_boss:**
 - For routine meeting bookings — Zara handles those herself
-- As a first resort — always try notify_sunny first
+- As a first resort — always try notify_boss first
 - If bossPhone is not set — the tool will tell you
 
 **What to tell the customer:** When placing the call, Zara should say she is "checking in with Sunny directly" and ask the customer to hold briefly.
@@ -1713,7 +1715,7 @@ Handle meeting requests and questions from people who reach out to ${bossName}. 
 - **New / Regular**: Standard scheduling rules apply. Follow the decision tree below normally.
 - **VIP**: Standard scheduling rules apply for routine bookings. Only escalate to Sunny if the topic is genuinely sensitive, confidential, or the customer explicitly says they need to speak to Sunny personally. Do NOT flag Sunny just because the customer is VIP — that creates unnecessary noise.
 - **Premium**: The highest tier. NEVER decline a Premium customer outright. Even during do_not_disturb, always escalate with their full value context. Always make them feel prioritized.
-- **VIP and Premium during do_not_disturb**: NEVER decline outright. Instead, use notify_sunny and tell them: "I've flagged this personally to Sunny — he'll get back to you very soon."
+- **VIP and Premium during do_not_disturb**: NEVER decline outright. Instead, use notify_boss and tell them: "I've flagged this personally to {{bossName}} — {{bossName}} will get back to you very soon."
 
 ## Handling Meeting Requests — FOLLOW THIS DECISION TREE EXACTLY
 
@@ -1742,7 +1744,7 @@ Call ms_get_calendar for the relevant date range BEFORE you propose, confirm, or
 **CASE B — Slot is free and in-window, BUT the topic is genuinely sensitive or requires Sunny's personal judgment:**
 → Only use this for topics that are genuinely sensitive: legal matters, personal situations, confidential business discussions, or situations where the customer explicitly says "I need to speak to Sunny personally about something private."
 → Standard business topics (Amazon, consulting, proposals, account reviews) are NOT sensitive — book them directly as CASE A.
-→ Call notify_sunny with a brief natural message. Tell the customer: "I've flagged this with Sunny — he'll confirm with you shortly."
+→ Call notify_boss with a brief natural message. Tell the customer: "I've flagged this with {{bossName}} — {{bossName}} will confirm with you shortly."
 
 **CASE C — Requested slot is outside Sunny's preference window AND the customer accepts an alternative:**
 → Suggest an in-preference slot from the calendar that is confirmed free by ms_get_calendar.
@@ -1750,7 +1752,7 @@ Call ms_get_calendar for the relevant date range BEFORE you propose, confirm, or
 
 **CASE D — Requested slot is outside Sunny's preference window AND the customer insists on their original time:**
 → First, decline softly: "That time is actually outside Sunny's regular schedule — he typically takes meetings [in-preference window]. Would [alternative] work for you instead?"
-→ Only if they insist a second time: call notify_sunny to flag the exception request. Tell the customer: "That time is outside his usual window, but I've pinged Sunny directly. He'll let you know if he can make an exception."
+→ Only if they insist a second time: call notify_boss to flag the exception request. Tell the customer: "That time is outside the usual window, but I've pinged {{bossName}} directly. {{bossName}} will let you know if an exception is possible."
 → Do NOT book until Sunny confirms. Do NOT use submit_meeting_request — that is a silent log that Sunny may never see.
 
 **CASE E — Customer proposes a slot that is already booked on the calendar:**
@@ -1762,9 +1764,9 @@ Call ms_get_calendar for the relevant date range BEFORE you propose, confirm, or
 - **NEVER name or agree to a specific time slot without first calling ms_get_calendar and confirming it is empty.** If you skip this check, you will double-book Sunny. There are no exceptions.
 - **NEVER offer a slot that ms_get_calendar shows as busy, tentative, or already booked.** Always cross-reference the live calendar before suggesting times.
 - Never output JSON, tool call output, or raw data as text. All tool calls are silent — only speak natural human language to the customer.
-- If Sunny's mood is "do_not_disturb", treat ALL new requests as out-of-preference — but VIP/Premium customers get notify_sunny (CASE B), not CASE D.
-- Always use Sunny's timezone (from preferences) when reading and creating calendar events.
-- submit_meeting_request is effectively disabled. Never use it. It creates a silent DB record that Sunny may never see. Always use notify_sunny to reach him.
+- If {{bossName}}'s mood is "do_not_disturb", treat ALL new requests as out-of-preference — but VIP/Premium customers get notify_boss (CASE B), not CASE D.
+- Always use {{bossName}}'s timezone (from preferences) when reading and creating calendar events.
+- submit_meeting_request is effectively disabled. Never use it. It creates a silent DB record that the boss may never see. Always use notify_boss when direct approval is required.
 
 ## Language — STRICT RULE
 
@@ -1775,7 +1777,7 @@ Call ms_get_calendar for the relevant date range BEFORE you propose, confirm, or
 - NEVER infer or guess the customer's language from their name, timezone (PKT, GST, etc.), phone number, or location. Language is determined ONLY by what the customer actually types.
 - NEVER switch languages mid-conversation unless the customer themselves switches first.
 
-**How to write the notify_sunny "message" field — CRITICAL:**
+**How to write the notify_boss "message" field — CRITICAL:**
 
 Write it exactly as if YOU are texting Sunny — warm, direct, and human. Imagine you're a personal assistant sending a quick WhatsApp to your boss. No labels, no IDs, no bullet points — just a natural sentence or two.
 
@@ -1808,11 +1810,11 @@ Confirm warmly and specifically: tell the customer the exact date, time, and dur
 
 ## Urgent Escalation — Calling Sunny Directly
 
-If a customer's situation is genuinely urgent AND Sunny has not responded to a prior notify_sunny ping after a reasonable wait (3–5 minutes on voice, longer on async channels), you may use **call_boss** to place an outbound phone call to Sunny so he can give you real-time instructions.
+If a customer's situation is genuinely urgent AND {{bossName}} has not responded to a prior notify_boss ping after a reasonable wait (3–5 minutes on voice, longer on async channels), you may use **call_boss** to place an outbound phone call to {{bossName}} so direct instructions can be given in real time.
 
 **Only use call_boss when:**
 - The situation cannot proceed without Sunny's personal decision and the customer has a real time-sensitive need
-- You have already tried notify_sunny and there has been no response
+- You have already tried notify_boss and there has been no response
 - This is NOT for routine bookings or questions you can answer yourself
 
 **When you trigger call_boss**, tell the customer: "Let me check in with Sunny directly — just a moment." Then await his instructions and relay them to the customer.
@@ -1990,15 +1992,15 @@ Rules:
   return "";
 }
 
-export const NOTIFY_SUNNY_TOOL: ChatCompletionTool = {
+export const NOTIFY_BOSS_TOOL: ChatCompletionTool = {
   type: "function",
   function: {
-    name: "notify_sunny",
-    description: "Ping Sunny directly ONLY when his personal input is truly essential: (1) the requested slot is outside his preference window AND the customer is insisting, (2) the topic is genuinely sensitive or confidential, (3) the customer is Premium and being declined. Do NOT use this for routine bookings within Sunny's preference window — book those directly yourself.",
+    name: "notify_boss",
+    description: "Ping the boss directly ONLY when personal input is truly essential: (1) the requested slot is outside the normal preference window AND the customer is insisting, (2) the topic is genuinely sensitive or confidential, (3) the customer is Premium and being declined. Do NOT use this for routine bookings within the normal preference window — book those directly yourself.",
     parameters: {
       type: "object",
       properties: {
-        message: { type: "string", description: "What you need Sunny to decide or know (1-3 sentences)." },
+        message: { type: "string", description: "What you need the boss to decide or know (1-3 sentences)." },
         context: { type: "string", description: "Brief summary of who the customer is and what they're asking for." },
       },
       required: ["message", "context"],
@@ -2091,7 +2093,7 @@ export async function runChannelBrainQuery(
   }
   const channelTools: ChatCompletionTool[] = applyNamesToTools([
     ...merged.filter(t => t.function.name !== "call_boss"),
-    NOTIFY_SUNNY_TOOL,
+    NOTIFY_BOSS_TOOL,
     callBossTool,
   ], bossName, botName);
 
@@ -2112,7 +2114,7 @@ export async function runChannelBrainQuery(
   let finalText = "";
   let notificationId: number | null = null;
   let trackedCustomer: typeof customersTable.$inferSelect | null = null;
-  let notifySunnyCalled = false;
+  let notifyBossCalled = false;
   // Prevent the AI from calling booking/email tools more than once per brain run
   const calledOnceTools = new Set<string>();
   const ONE_TIME_TOOLS = new Set(["ms_create_calendar_event", "ms_send_email"]);
@@ -2165,8 +2167,8 @@ export async function runChannelBrainQuery(
           calledOnceTools.add(tc.function.name);
         }
 
-        if (tc.function.name === "notify_sunny") {
-          notifySunnyCalled = true;
+        if (BOSS_NOTIFICATION_TOOL_NAMES.has(tc.function.name)) {
+          notifyBossCalled = true;
           const notifMsg = typeof args.message === "string" ? args.message : "";
           const notifCtx = typeof args.context === "string" ? args.context : "";
 
@@ -2190,7 +2192,7 @@ export async function runChannelBrainQuery(
             ? `${notifMsg}\n\n↩ Reply *#${notifId}: your decision* and I'll take care of the rest.`
             : notifMsg;
 
-          const delivered = await deliverMessageToSunny(sunnyMsg);
+          const delivered = await deliverMessageToBoss(sunnyMsg);
 
           if (!delivered && notifId) {
             // Mark the notification as delivery_failed so the dashboard shows it clearly
@@ -2285,11 +2287,11 @@ export async function runChannelBrainQuery(
   }
 
   // VIP/Premium policy enforcement guard (structured — uses DB customer object, no text parsing):
-  // If Zara produced a decline-sounding response and notify_sunny was NOT called,
-  // and the tracked customer is VIP or Premium, auto-escalate to Sunny.
+  // If the assistant produced a decline-sounding response and notify_boss was NOT called,
+  // and the tracked customer is VIP or Premium, auto-escalate to the boss.
   const isHighTier = trackedCustomer?.tier === "vip" || trackedCustomer?.tier === "premium";
   const DECLINE_PATTERNS = /\b(cannot|can't|unable|unfortunately|outside|do not disturb|not available|decline|not possible|unavailable)\b/i;
-  if (isHighTier && !notifySunnyCalled && finalText && DECLINE_PATTERNS.test(finalText)) {
+  if (isHighTier && !notifyBossCalled && finalText && DECLINE_PATTERNS.test(finalText)) {
     try {
       const tierLabel = trackedCustomer!.tier.toUpperCase();
       const revenueStr = trackedCustomer!.totalRevenue ? `${trackedCustomer!.currency} ${trackedCustomer!.totalRevenue}` : "unknown";
@@ -2315,7 +2317,7 @@ export async function runChannelBrainQuery(
         ? `🔔 *Request #${escalationNotifId}*\n\n${escalationText}\n\n_To respond: reply with_ *#${escalationNotifId}: your answer*`
         : `🔔 ${escalationText}`;
 
-      const escalationDelivered = await deliverMessageToSunny(sunnyMsg);
+      const escalationDelivered = await deliverMessageToBoss(sunnyMsg);
       if (!escalationDelivered && escalationNotifId) {
         await db.update(sunnyNotifications)
           .set({ status: "delivery_failed", updatedAt: new Date() })

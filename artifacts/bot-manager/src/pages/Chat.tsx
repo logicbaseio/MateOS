@@ -83,7 +83,7 @@ function AvatarBoss({ size = 8 }: { size?: number }) {
   );
 }
 
-function AvatarZara({ size = 8, color = "purple" }: { size?: number; color?: string }) {
+function AssistantAvatar({ size = 8, color = "purple" }: { size?: number; color?: string }) {
   const bg =
     color === "teal"
       ? "linear-gradient(135deg,#14b8a6,#059669)"
@@ -245,7 +245,7 @@ function ChatPanel({
                   <AvatarBoss size={7} />
                 )
               ) : (
-                <AvatarZara size={7} color={isCustomer ? "teal" : "purple"} />
+                  <AssistantAvatar size={7} color={isCustomer ? "teal" : "purple"} />
               )}
               <div
                 className={cn(
@@ -265,7 +265,7 @@ function ChatPanel({
 
         {isStreaming && streamingContent && (
           <div className="flex gap-2.5 max-w-full">
-            <AvatarZara size={7} color={isCustomer ? "teal" : "purple"} />
+            <AssistantAvatar size={7} color={isCustomer ? "teal" : "purple"} />
             <div className="rounded-2xl px-3.5 py-2.5 max-w-[82%] bg-muted dark:bg-muted/60 shadow-sm text-sm leading-relaxed whitespace-pre-wrap">
               {streamingContent}
               <span className="inline-block w-0.5 h-4 bg-primary animate-pulse ml-0.5 rounded align-middle" />
@@ -275,7 +275,7 @@ function ChatPanel({
 
         {isStreaming && !streamingContent && (
           <div className="flex gap-2.5">
-            <AvatarZara size={7} color={isCustomer ? "teal" : "purple"} />
+            <AssistantAvatar size={7} color={isCustomer ? "teal" : "purple"} />
             <div className="rounded-2xl px-3.5 py-2.5 bg-muted dark:bg-muted/60 shadow-sm">
               <TypingDots />
             </div>
@@ -860,7 +860,7 @@ export default function Chat() {
               <div className="flex items-center gap-1.5">
                 <AvatarCustomer name={linkedPair.customerConvo.customerName} size={7} />
                 <ArrowLeftRight size={14} className="text-muted-foreground" />
-                <AvatarZara size={7} color="purple" />
+                <AssistantAvatar size={7} color="purple" />
                 <ArrowLeftRight size={14} className="text-muted-foreground" />
                 <AvatarBoss size={7} />
               </div>

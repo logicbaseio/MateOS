@@ -4,7 +4,7 @@ import { db, conversations, messages, preferencesTable, bossMemoryTable, sunnyNo
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { voiceChatStream, ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import { getLLMClient } from "../../lib/llm";
-import { executeTool, getToolsForMode, NOTIFY_SUNNY_TOOL, loadNames, loadSoul } from "../../brain/engine";
+import { executeTool, getToolsForMode, NOTIFY_BOSS_TOOL, loadNames, loadSoul } from "../../brain/engine";
 import { getBossPersona } from "../../brain/persona";
 import {
   ListOpenaiConversationsResponse,
@@ -26,6 +26,7 @@ const router: IRouter = Router();
 
 type FunctionTool = Extract<ChatCompletionTool, { type: "function" }>;
 type FunctionToolCall = Extract<ChatCompletionMessageToolCall, { type: "function" }>;
+const BOSS_NOTIFICATION_TOOL_NAMES = new Set(["notify_boss", "notify_sunny"]);
 
 function isFunctionTool(tool: ChatCompletionTool): tool is FunctionTool {
   return tool.type === "function";
@@ -414,12 +415,12 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         res.write(`data: ${JSON.stringify({ content: fullResponse })}\n\n`);
       }
     } else {
-      // Customer mode: tool loop using tools enabled in Bot Permissions
-      // Always include notify_sunny so Zara can actually ping Sunny — without it she hallucinates the action
+      // Customer mode: tool loop using tools enabled in Bot Permissions.
+      // Always include notify_boss so the assistant can escalate when needed.
       const permissionedCustomerTools = getToolsForMode(relayToolConfig, "customer").filter(isFunctionTool);
-      const customerTools = permissionedCustomerTools.find(t => t.function.name === "notify_sunny")
+      const customerTools = permissionedCustomerTools.find(t => t.function.name === "notify_boss")
         ? permissionedCustomerTools
-        : [...permissionedCustomerTools, NOTIFY_SUNNY_TOOL];
+        : [...permissionedCustomerTools, NOTIFY_BOSS_TOOL];
 
       type OAIMsg = Parameters<typeof openai.chat.completions.create>[0]["messages"][0];
       const custLoopMessages: OAIMsg[] = chatMessages as OAIMsg[];
@@ -452,8 +453,8 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
             let result = "";
 
-            if (tc.function.name === "notify_sunny") {
-              // Handle notify_sunny for web chat: record the notification AND inject it into the
+            if (BOSS_NOTIFICATION_TOOL_NAMES.has(tc.function.name)) {
+              // Handle boss notifications for web chat: record the notification AND inject it into the
               // linked boss conversation so it appears in the boss panel in real time.
               try {
                 const notifMsg = typeof args.message === "string" ? args.message : "";
@@ -489,7 +490,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
                 result = `Notification sent to the boss (ID: ${inserted?.id ?? "?"}). He will respond via the boss panel.`;
               } catch (e) {
-                result = `notify_sunny failed: ${String(e)}`;
+                result = `notify_boss failed: ${String(e)}`;
               }
             } else {
               try {

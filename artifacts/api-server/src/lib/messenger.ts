@@ -1,12 +1,12 @@
 import { eq } from "drizzle-orm";
 import { db, channelConfigs } from "@workspace/db";
 
-export interface SunnyContact {
+export interface BossContact {
   channelType: string;
   externalId: string;
 }
 
-export async function getSunnyContact(): Promise<SunnyContact | null> {
+export async function getBossContact(): Promise<BossContact | null> {
   const [row] = await db
     .select()
     .from(channelConfigs)
@@ -16,7 +16,7 @@ export async function getSunnyContact(): Promise<SunnyContact | null> {
   if (!row) return null;
 
   try {
-    const cfg = JSON.parse(row.config) as SunnyContact;
+    const cfg = JSON.parse(row.config) as BossContact;
     if (cfg.channelType && cfg.externalId) return cfg;
   } catch { /* ignore */ }
   return null;
@@ -122,30 +122,30 @@ async function getWhatsAppSendingCredentials(): Promise<Record<string, string> |
   return null;
 }
 
-export async function deliverMessageToSunny(text: string): Promise<boolean> {
-  const contact = await getSunnyContact();
+export async function deliverMessageToBoss(text: string): Promise<boolean> {
+  const contact = await getBossContact();
   if (!contact) {
-    console.warn("[messenger/deliverMessageToSunny] No sunny_contact configured — notification not delivered");
+    console.warn("[messenger/deliverMessageToBoss] No sunny_contact configured — notification not delivered");
     return false;
   }
 
   try {
     if (contact.channelType === "telegram") {
       const cfg = await getChannelToken("telegram", false);
-      if (!cfg?.botToken) { console.warn("[messenger/deliverMessageToSunny] No Telegram config"); return false; }
+      if (!cfg?.botToken) { console.warn("[messenger/deliverMessageToBoss] No Telegram config"); return false; }
       await sendTelegram(cfg.botToken, contact.externalId, text);
       return true;
     } else if (contact.channelType === "slack") {
       const cfg = await getChannelToken("slack", false);
-      if (!cfg?.botToken) { console.warn("[messenger/deliverMessageToSunny] No Slack config"); return false; }
+      if (!cfg?.botToken) { console.warn("[messenger/deliverMessageToBoss] No Slack config"); return false; }
       await sendSlack(cfg.botToken, contact.externalId, text);
       return true;
     } else if (contact.channelType === "whatsapp") {
       const cfg = await getWhatsAppSendingCredentials();
-      if (!cfg) { console.warn("[messenger/deliverMessageToSunny] No WhatsApp credentials available"); return false; }
+      if (!cfg) { console.warn("[messenger/deliverMessageToBoss] No WhatsApp credentials available"); return false; }
       const ok = await sendWhatsApp(cfg.phoneNumberId, cfg.accessToken, contact.externalId, text);
       if (!ok) {
-        console.error(`[messenger/deliverMessageToSunny] WhatsApp delivery failed to ${contact.externalId}. Likely cause: no active 24-hour session window (boss must message the bot first) or expired token.`);
+        console.error(`[messenger/deliverMessageToBoss] WhatsApp delivery failed to ${contact.externalId}. Likely cause: no active 24-hour session window (boss must message the bot first) or expired token.`);
       }
       return ok;
     } else if (contact.channelType === "teams") {
@@ -154,7 +154,7 @@ export async function deliverMessageToSunny(text: string): Promise<boolean> {
       return false;
     }
   } catch (err) {
-    console.error("[messenger/deliverMessageToSunny] error:", err);
+    console.error("[messenger/deliverMessageToBoss] error:", err);
   }
   return false;
 }

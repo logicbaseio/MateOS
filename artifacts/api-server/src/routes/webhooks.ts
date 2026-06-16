@@ -4,9 +4,9 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { db, channelConfigs, channelSessions, sunnyNotifications, preferencesTable } from "@workspace/db";
 import { runChannelBrainQuery, runBrainQuery } from "../brain/engine";
 import {
-  getSunnyContact,
+  getBossContact,
   deliverToChannel,
-  deliverMessageToSunny,
+  deliverMessageToBoss,
   sendTelegram,
   sendSlack,
   sendWhatsApp,
@@ -125,11 +125,11 @@ async function processChannelMessage(
   return { reply, notificationId };
 }
 
-async function isSunnyMessage(channelType: string, externalId: string): Promise<boolean> {
+async function isBossMessage(channelType: string, externalId: string): Promise<boolean> {
   const incomingNorm = externalId.replace(/\D/g, "");
 
   // Check 1: sunny_contact record — normalize both sides for WhatsApp (handles +, spaces, dashes)
-  const contact = await getSunnyContact();
+  const contact = await getBossContact();
   if (contact && contact.channelType === channelType) {
     const storedNorm = channelType === "whatsapp"
       ? contact.externalId.replace(/\D/g, "")
@@ -163,7 +163,7 @@ async function isSunnyMessage(channelType: string, externalId: string): Promise<
  * always go back via a channel where there IS an active session.
  * Called every time the boss sends a message so the 24-hour window stays open.
  */
-async function refreshSunnyContact(channelType: string, externalId: string): Promise<void> {
+async function refreshBossContact(channelType: string, externalId: string): Promise<void> {
   try {
     const configJson = JSON.stringify({ channelType, externalId });
     const existing = await db.select().from(channelConfigs)
@@ -182,13 +182,13 @@ async function refreshSunnyContact(channelType: string, externalId: string): Pro
       });
     }
   } catch (err) {
-    console.warn("[refreshSunnyContact] failed:", err);
+    console.warn("[refreshBossContact] failed:", err);
   }
 }
 
-async function relayThroughZara(
+async function relayThroughAssistant(
   notification: { id: number; channelType: string; externalId: string; sessionId: string; notificationText: string },
-  sunnyInstruction: string,
+  bossInstruction: string,
 ): Promise<void> {
   const [prefs] = await db.select().from(preferencesTable).limit(1);
   const bossLabel = prefs?.bossName?.trim() || "Boss";
@@ -198,7 +198,7 @@ async function relayThroughZara(
   try { history = JSON.parse(session.messages) as SessionMessage[]; } catch { /* ignore */ }
 
   const triggerMessage = [
-    `DIRECT INSTRUCTIONS FROM ${bossLabel.toUpperCase()} — EXECUTE IMMEDIATELY: ${sunnyInstruction}`,
+    `DIRECT INSTRUCTIONS FROM ${bossLabel.toUpperCase()} — EXECUTE IMMEDIATELY: ${bossInstruction}`,
     `[This is ${bossLabel}'s response to: "${notification.notificationText}". Take this as a final decision — do NOT ask for clarification, do NOT re-confirm, just act on it now.]`,
   ].join("\n");
 
@@ -218,7 +218,7 @@ async function relayThroughZara(
 
   await deliverToChannel(notification.channelType, notification.externalId, reply, true);
 
-  void deliverMessageToSunny("Got it, passed it on.");
+  void deliverMessageToBoss("Got it, passed it on.");
 
   // After handling this one, surface the next unanswered request naturally — one at a time
   const remaining = await db
@@ -235,12 +235,12 @@ async function relayThroughZara(
     const next = remaining[0];
     const followUp = `One more thing — ${next.notificationText}\n\n↩ Reply *#${next.id}: your decision* and I'll handle it.`;
     setTimeout(() => {
-      void deliverMessageToSunny(followUp);
+      void deliverMessageToBoss(followUp);
     }, 2500);
   }
 }
 
-async function handleSunnyReply(channelType: string, text: string): Promise<void> {
+async function handleBossReply(channelType: string, text: string): Promise<void> {
   const trimmed = text.trim();
   const refMatch = trimmed.match(/^#(\d+)[:\s]+(.+)$/s);
 
@@ -256,7 +256,7 @@ async function handleSunnyReply(channelType: string, text: string): Promise<void
       .limit(1);
 
     if (!notification) {
-      void deliverMessageToSunny(`⚠️ No pending request found with ID #${notificationId}. It may have already been handled.`);
+      void deliverMessageToBoss(`⚠️ No pending request found with ID #${notificationId}. It may have already been handled.`);
       return;
     }
 
@@ -268,15 +268,15 @@ async function handleSunnyReply(channelType: string, text: string): Promise<void
       .where(eq(channelSessions.id, Number(notification.sessionId)));
 
     try {
-      await relayThroughZara(notification, replyText);
+      await relayThroughAssistant(notification, replyText);
     } catch (err) {
-      console.error("[handleSunnyReply] relay error:", err);
-      void deliverMessageToSunny("⚠️ Something went wrong relaying your reply. Please check the dashboard.");
+      console.error("[handleBossReply] relay error:", err);
+      void deliverMessageToBoss("⚠️ Something went wrong relaying your reply. Please check the dashboard.");
     }
     return;
   }
 
-  // No #ID prefix — nothing to handle. Callers are responsible for routing non-reply boss messages through Zara.
+  // No #ID prefix — nothing to handle. Callers are responsible for routing non-reply boss messages through the assistant.
 }
 
 export async function deliverReplyToChannel(
@@ -305,10 +305,10 @@ router.post("/webhooks/telegram", async (req, res): Promise<void> => {
   res.sendStatus(200);
 
   try {
-    const isBoss = await isSunnyMessage("telegram", String(chatId));
+    const isBoss = await isBossMessage("telegram", String(chatId));
     if (isBoss) {
       const refMatch = text.match(/^#(\d+)[:\s]+(.+)$/s);
-      if (refMatch) { await handleSunnyReply("telegram", text); return; }
+      if (refMatch) { await handleBossReply("telegram", text); return; }
     }
     const { reply } = await processChannelMessage("telegram", String(chatId), text, isBoss ? "boss" : "customer");
     await sendTelegram(ch.config.botToken, chatId, reply);
@@ -356,10 +356,10 @@ router.post("/webhooks/slack", async (req, res): Promise<void> => {
   res.sendStatus(200);
 
   try {
-    const isBoss = await isSunnyMessage("slack", userId);
+    const isBoss = await isBossMessage("slack", userId);
     if (isBoss) {
       const refMatch = text.match(/^#(\d+)[:\s]+(.+)$/s);
-      if (refMatch) { await handleSunnyReply("slack", text); return; }
+      if (refMatch) { await handleBossReply("slack", text); return; }
     }
     const { reply } = await processChannelMessage("slack", userId, text, isBoss ? "boss" : "customer");
     await sendSlack(ch.config.botToken, channelId, reply);
@@ -391,10 +391,10 @@ router.post("/webhooks/discord", async (req, res): Promise<void> => {
     res.json({ type: 5 });
 
     try {
-      const isBoss = await isSunnyMessage("discord", userId);
+      const isBoss = await isBossMessage("discord", userId);
       if (isBoss) {
         const refMatch = text.match(/^#(\d+)[:\s]+(.+)$/s);
-        if (refMatch) { await handleSunnyReply("discord", text); return; }
+        if (refMatch) { await handleBossReply("discord", text); return; }
       }
       const { reply } = await processChannelMessage("discord", userId, text, isBoss ? "boss" : "customer");
       await sendDiscordFollowup(ch.config.applicationId, body.token ?? "", reply);
@@ -468,7 +468,7 @@ router.post("/webhooks/whatsapp", async (req, res): Promise<void> => {
     const isBossBrainNumber = bb?.platform === "whatsapp" && receivingPhoneId && receivingPhoneId === bb.config.phoneNumberId;
 
     if (isBossBrainNumber) {
-      const isBoss = await isSunnyMessage("whatsapp", from);
+      const isBoss = await isBossMessage("whatsapp", from);
       if (isBoss) {
         let effectiveText = text;
         if (msgType === "audio" && audioMediaId) {
@@ -483,7 +483,7 @@ router.post("/webhooks/whatsapp", async (req, res): Promise<void> => {
         }
         const refMatch = effectiveText.trim().match(/^#(\d+)[:\s]+(.+)$/s);
         if (refMatch) {
-          await handleSunnyReply("whatsapp", effectiveText);
+          await handleBossReply("whatsapp", effectiveText);
         } else {
           const reply = await runBrainQuery(effectiveText);
           await sendWhatsApp(bb.config.phoneNumberId, bb.config.accessToken, from, reply);
@@ -505,7 +505,7 @@ router.post("/webhooks/whatsapp", async (req, res): Promise<void> => {
       if (codeRow) {
         const codeData = JSON.parse(codeRow.config) as { code: string; expiresAt: string };
         if (codeData.code === submittedCode && new Date(codeData.expiresAt) > new Date()) {
-          await refreshSunnyContact("whatsapp", from);
+          await refreshBossContact("whatsapp", from);
           registered = true;
           console.log(`[boss-detect] Self-registration successful for: ${from}`);
         }
@@ -518,7 +518,7 @@ router.post("/webhooks/whatsapp", async (req, res): Promise<void> => {
       return;
     }
 
-    const isBoss = await isSunnyMessage("whatsapp", from);
+    const isBoss = await isBossMessage("whatsapp", from);
 
     if (msgType === "audio" && audioMediaId) {
       if (isBoss) {
@@ -531,7 +531,7 @@ router.post("/webhooks/whatsapp", async (req, res): Promise<void> => {
           return;
         }
         const refMatch = transcribed.trim().match(/^#(\d+)[:\s]+(.+)$/s);
-        if (refMatch) { await handleSunnyReply("whatsapp", transcribed); return; }
+        if (refMatch) { await handleBossReply("whatsapp", transcribed); return; }
         const { reply } = await processChannelMessage("whatsapp", from, transcribed, "boss");
         await sendWhatsApp(ch.config.phoneNumberId, ch.config.accessToken, from, reply);
       } else {
@@ -593,9 +593,9 @@ This mixed style is how educated Urdu speakers naturally communicate and is requ
     if (isBoss) {
       // Boss is messaging via the customer WhatsApp channel — refresh their contact so
       // the 24-hour session window stays open and future notifications reach them here.
-      void refreshSunnyContact("whatsapp", from);
+      void refreshBossContact("whatsapp", from);
       const refMatch = text.match(/^#(\d+)[:\s]+(.+)$/s);
-      if (refMatch) { await handleSunnyReply("whatsapp", text); return; }
+      if (refMatch) { await handleBossReply("whatsapp", text); return; }
     }
     const { reply } = await processChannelMessage("whatsapp", from, text, isBoss ? "boss" : "customer");
     await sendWhatsApp(ch.config.phoneNumberId, ch.config.accessToken, from, reply);
@@ -628,10 +628,10 @@ router.post("/webhooks/teams", async (req, res): Promise<void> => {
   res.sendStatus(200);
 
   try {
-    const isBoss = await isSunnyMessage("teams", userId);
+    const isBoss = await isBossMessage("teams", userId);
     if (isBoss) {
       const refMatch = text.match(/^#(\d+)[:\s]+(.+)$/s);
-      if (refMatch) { await handleSunnyReply("teams", text); return; }
+      if (refMatch) { await handleBossReply("teams", text); return; }
     }
     const { reply } = await processChannelMessage("teams", userId, text, isBoss ? "boss" : "customer");
     if (ch.config.incomingWebhookUrl) await sendToTeams(ch.config.incomingWebhookUrl, reply);
@@ -702,11 +702,11 @@ router.post("/webhooks/boss/whatsapp", async (req, res): Promise<void> => {
   try {
     // Every time the boss messages boss_brain, refresh their contact so notifications
     // always go back to a channel where there is an active 24-hour session window.
-    void refreshSunnyContact("whatsapp", from);
+    void refreshBossContact("whatsapp", from);
 
     const refMatch = text.trim().match(/^#(\d+)[:\s]+(.+)$/s);
     if (refMatch) {
-      await handleSunnyReply("whatsapp", text);
+      await handleBossReply("whatsapp", text);
       return;
     }
 

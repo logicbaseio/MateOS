@@ -58,7 +58,7 @@ interface ChannelStatus {
 }
 
 
-interface SunnyContact {
+interface BossContact {
   channelType: string;
   externalId: string;
 }
@@ -184,13 +184,13 @@ function BossRegisterCode({ show }: { show: boolean }) {
   );
 }
 
-function SunnyContactCard({
+function BossContactCard({
   contact,
   connectedChannelTypes,
   onSaved,
   bossName,
 }: {
-  contact: SunnyContact | null;
+  contact: BossContact | null;
   connectedChannelTypes: string[];
   onSaved: () => void;
   bossName: string;
@@ -1627,7 +1627,7 @@ export default function Channels() {
   const botName = useBotName();
   const bossName = useBossName();
   const [channelStatuses, setChannelStatuses] = useState<ChannelStatus[]>([]);
-  const [sunnyContact, setSunnyContact] = useState<SunnyContact | null>(null);
+  const [bossContact, setBossContact] = useState<BossContact | null>(null);
   const [bossBrain, setBossBrain] = useState<BossBrainStatus | null>(null);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1645,12 +1645,12 @@ export default function Channels() {
       ]);
       const [statusData, contactData, bossBrainData, voiceData] = await Promise.all([
         statusRes.json() as Promise<ChannelStatus[]>,
-        contactRes.json() as Promise<SunnyContact>,
+        contactRes.json() as Promise<BossContact>,
         bossBrainRes.json() as Promise<BossBrainStatus>,
         voiceRes.json() as Promise<VoiceStatus>,
       ]);
       setChannelStatuses(statusData);
-      setSunnyContact(contactData.channelType ? contactData : null);
+      setBossContact(contactData.channelType ? contactData : null);
       setBossBrain(bossBrainData);
       setVoiceStatus(voiceData);
     } catch { /* ignore */ } finally {
@@ -1701,8 +1701,8 @@ export default function Channels() {
         )}
       </div>
 
-      <SunnyContactCard
-        contact={sunnyContact}
+      <BossContactCard
+        contact={bossContact}
         connectedChannelTypes={channelStatuses.filter((c) => c.status === "connected").map((c) => c.channelType)}
         onSaved={() => void fetchStatuses()}
         bossName={bossName}

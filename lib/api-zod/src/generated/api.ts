@@ -549,7 +549,7 @@ export const SendOpenaiMessageBody = zod.object({
     .string()
     .optional()
     .describe(
-      "boss = Sunny talking to bot; customer = customer talking to the assistant",
+      "boss = boss talking to assistant; customer = customer talking to the assistant",
     ),
   customerName: zod
     .string()
@@ -617,7 +617,7 @@ export const SendOpenaiVoiceMessageBody = zod.object({
     .string()
     .optional()
     .describe(
-      "boss = Sunny talking to bot; customer = customer talking to the assistant",
+      "boss = boss talking to assistant; customer = customer talking to the assistant",
     ),
   customerName: zod
     .string()

@@ -13,5 +13,5 @@ export const sunnyNotifications = pgTable("sunny_notifications", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export type SunnyNotification = typeof sunnyNotifications.$inferSelect;
-export type InsertSunnyNotification = typeof sunnyNotifications.$inferInsert;
+export type BossNotification = typeof sunnyNotifications.$inferSelect;
+export type InsertBossNotification = typeof sunnyNotifications.$inferInsert;

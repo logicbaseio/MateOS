@@ -3,7 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { db, channelConfigs, sunnyNotifications, channelSessions } from "@workspace/db";
 import { randomUUID } from "crypto";
 import { deliverReplyToChannel } from "./webhooks";
-import { getSunnyContact } from "../lib/messenger";
+import { getBossContact } from "../lib/messenger";
 import { connectVoiceChannel, disconnectVoiceChannel, warmElevenLabsCache } from "./voice";
 
 const router: IRouter = Router();
@@ -591,7 +591,7 @@ router.post("/channels/:type/disconnect", async (req, res): Promise<void> => {
 });
 
 router.get("/channels/sunny-contact", async (_req, res): Promise<void> => {
-  const contact = await getSunnyContact();
+  const contact = await getBossContact();
   res.json(contact ?? { channelType: "", externalId: "" });
 });
 

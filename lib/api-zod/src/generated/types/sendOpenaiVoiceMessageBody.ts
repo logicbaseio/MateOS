@@ -9,7 +9,7 @@
 export interface SendOpenaiVoiceMessageBody {
   /** Base64-encoded audio data */
   audio: string;
-  /** boss = Sunny talking to bot; customer = customer talking to the assistant */
+  /** boss = boss talking to assistant; customer = customer talking to the assistant */
   viewpoint?: string;
   /** Name of the customer, used when viewpoint is customer */
   customerName?: string;
