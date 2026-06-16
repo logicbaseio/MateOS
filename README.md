@@ -24,6 +24,12 @@ The short install command is:
 npx @hamzaashergill/mateos
 ```
 
+By default, that command will:
+
+- create `./MateOS` if it does not exist
+- reuse `./MateOS` if it already exists
+- start MateOS on localhost after setup
+
 Or install into a custom directory:
 
 ```bash

@@ -32,6 +32,9 @@ function printLogo() {
 
 function printUsage() {
   printLogo();
+  console.log("Default behavior:");
+  console.log("  mateos      Create or reuse ./MateOS and start it on localhost");
+  console.log("");
   console.log("Usage: mateos [directory]");
   console.log("   or: mateos <command>");
   console.log("");
@@ -60,6 +63,10 @@ function runCommand(command, args, options = {}) {
         rejectPromise(new Error(`${command} exited via signal ${signal}`));
         return;
       }
+      if ((code ?? 0) !== 0 && !options.allowNonZeroExit) {
+        rejectPromise(new Error(`${command} exited with code ${code ?? 0}`));
+        return;
+      }
       resolvePromise(code ?? 0);
     });
   });
@@ -86,7 +93,7 @@ function findProjectRoot(startDir) {
 }
 
 function requireProjectRoot() {
-  const projectRoot = findProjectRoot(process.cwd());
+  const projectRoot = findProjectRoot(process.cwd()) ?? findProjectRoot(resolve(process.cwd(), "MateOS"));
   if (!projectRoot) {
     console.error("This command must be run inside a MateOS checkout.");
     console.error(`Use \`${DEFAULT_NPX_COMMAND}\` first to create one.`);
@@ -121,8 +128,15 @@ function readEnvValue(root, key) {
 async function commandCreate(targetDir = "MateOS") {
   printLogo();
   const repoUrl = process.env.MATEOS_REPO_URL ?? DEFAULT_REPO_URL;
+  const targetPath = resolve(process.cwd(), targetDir);
 
-  if (existsSync(resolve(process.cwd(), targetDir))) {
+  if (existsSync(targetPath)) {
+    const existingRoot = findProjectRoot(targetPath);
+    if (existingRoot) {
+      console.log(`Using existing MateOS checkout at ${existingRoot}`);
+      await commandLocalhost(existingRoot, { skipLogo: true });
+      return;
+    }
     console.error(`Target already exists: ${targetDir}`);
     process.exit(1);
   }
@@ -141,7 +155,7 @@ async function commandCreate(targetDir = "MateOS") {
   console.log(`Cloning MateOS into ${targetDir}`);
   await runCommand("git", ["clone", repoUrl, targetDir]);
 
-  const projectRoot = resolve(process.cwd(), targetDir);
+  const projectRoot = targetPath;
   const envPath = resolve(projectRoot, ".env");
   const envExamplePath = resolve(projectRoot, ".env.example");
   if (!existsSync(envPath) && existsSync(envExamplePath)) {
@@ -177,10 +191,8 @@ async function commandCreate(targetDir = "MateOS") {
 
   console.log("");
   console.log("MateOS is installed.");
-  console.log(`Next steps:`);
-  console.log(`  cd ${targetDir}`);
-  console.log("  node ./bin/mateos.mjs doctor");
-  console.log("  node ./bin/mateos.mjs localhost");
+  console.log("Starting MateOS on localhost");
+  await commandLocalhost(projectRoot, { skipLogo: true });
 }
 
 async function commandInit() {
@@ -212,7 +224,7 @@ async function commandDoctor() {
 
   for (const [command, args] of checks) {
     try {
-      const code = await runCommand(command, args, { cwd: root, stdio: "pipe" });
+      const code = await runCommand(command, args, { cwd: root, stdio: "pipe", allowNonZeroExit: true });
       if (code === 0) {
         console.log(`${command}: ok`);
       } else {
@@ -228,7 +240,7 @@ async function commandDoctor() {
   const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(root, "DATABASE_URL");
   for (const [command, args] of optionalChecks) {
     try {
-      const code = await runCommand(command, args, { cwd: root, stdio: "pipe" });
+      const code = await runCommand(command, args, { cwd: root, stdio: "pipe", allowNonZeroExit: true });
       console.log(`${command}: ${code === 0 ? "ok" : "failed"}`);
     } catch {
       console.log(`${command}: optional`);
@@ -251,8 +263,7 @@ async function commandDoctor() {
   console.log("Local prerequisites look good.");
 }
 
-async function startLocalhost() {
-  const root = requireProjectRoot();
+async function startLocalhost(root = requireProjectRoot()) {
   if (!existsSync(resolve(root, ".env"))) {
     copyFileSync(resolve(root, ".env.example"), resolve(root, ".env"));
     console.log("Created .env from .env.example");
@@ -320,13 +331,16 @@ async function commandDev() {
   await startLocalhost();
 }
 
-async function commandLocalhost() {
-  printLogo();
-  await startLocalhost();
+async function commandLocalhost(root = requireProjectRoot(), options = {}) {
+  if (!options.skipLogo) {
+    printLogo();
+  }
+  await startLocalhost(root);
 }
 
 async function commandBrain() {
   printLogo();
+  requireProjectRoot();
   const baseUrl = process.env.MATEOS_API_URL ?? DEFAULT_API_URL;
   console.log(`Brain endpoint: ${baseUrl}/api/brain/chat`);
   console.log("Type `/exit` to quit or `/clear` to clear Brain history.");
@@ -341,7 +355,13 @@ async function commandBrain() {
     if (message === "/exit" || message === "/quit") break;
 
     if (message === "/clear") {
-      const clearRes = await fetch(`${baseUrl}/api/brain/messages`, { method: "DELETE" });
+      let clearRes;
+      try {
+        clearRes = await fetch(`${baseUrl}/api/brain/messages`, { method: "DELETE" });
+      } catch {
+        console.error(`Could not reach MateOS at ${baseUrl}. Start localhost first with \`node ./bin/mateos.mjs localhost\`.`);
+        continue;
+      }
       if (!clearRes.ok) {
         console.error(`Failed to clear Brain history (${clearRes.status})`);
       } else {
@@ -350,11 +370,17 @@ async function commandBrain() {
       continue;
     }
 
-    const res = await fetch(`${baseUrl}/api/brain/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: message }),
-    });
+    let res;
+    try {
+      res = await fetch(`${baseUrl}/api/brain/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: message }),
+      });
+    } catch {
+      console.error(`Could not reach MateOS at ${baseUrl}. Start localhost first with \`node ./bin/mateos.mjs localhost\`.`);
+      continue;
+    }
 
     if (!res.ok || !res.body) {
       console.error(`Brain request failed (${res.status})`);
@@ -401,39 +427,48 @@ async function commandBrain() {
   rl.close();
 }
 
-const firstArg = process.argv[2];
-const knownCommands = new Set(["create", "brain", "logo", "init", "doctor", "dev", "localhost", "help", "--help", "-h"]);
-const command = knownCommands.has(firstArg ?? "") ? firstArg : "create";
-const createTarget = command === "create" && firstArg && !knownCommands.has(firstArg) ? firstArg : process.argv[3];
+async function main() {
+  const firstArg = process.argv[2];
+  const knownCommands = new Set(["create", "brain", "logo", "init", "doctor", "dev", "localhost", "help", "--help", "-h"]);
+  const command = knownCommands.has(firstArg ?? "") ? firstArg : "create";
+  const createTarget = command === "create" && firstArg && !knownCommands.has(firstArg) ? firstArg : process.argv[3];
 
-switch (command) {
-  case "create":
-    await commandCreate(createTarget || "MateOS");
-    break;
-  case "brain":
-    await commandBrain();
-    break;
-  case "logo":
-    printLogo();
-    break;
-  case "init":
-    await commandInit();
-    break;
-  case "doctor":
-    await commandDoctor();
-    break;
-  case "dev":
-    await commandDev();
-    break;
-  case "localhost":
-    await commandLocalhost();
-    break;
-  case "help":
-  case "--help":
-  case "-h":
-    printUsage();
-    break;
-  default:
-    printUsage();
-    process.exitCode = command === "usage" ? 0 : 1;
+  switch (command) {
+    case "create":
+      await commandCreate(createTarget || "MateOS");
+      break;
+    case "brain":
+      await commandBrain();
+      break;
+    case "logo":
+      printLogo();
+      break;
+    case "init":
+      await commandInit();
+      break;
+    case "doctor":
+      await commandDoctor();
+      break;
+    case "dev":
+      await commandDev();
+      break;
+    case "localhost":
+      await commandLocalhost();
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      printUsage();
+      break;
+    default:
+      printUsage();
+      process.exitCode = 1;
+  }
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
 }
