@@ -16,13 +16,29 @@ MateOS includes:
 - AI-assisted scheduling, conversation relay, and workflow tools
 - Optional Microsoft, Twilio, ElevenLabs, Hume, and Telegram integrations
 
-## One-Command Install
+## Short Install Command
+
+Once the CLI is published to npm, the short install command is:
+
+```bash
+npx mateos
+```
+
+Or install into a custom directory:
+
+```bash
+npx mateos my-mateos
+```
+
+## GitHub Install
+
+Today, the GitHub bootstrap command is:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/logicbaseio/MateOS/main/install.sh)
 ```
 
-That installer:
+Both install paths do the same bootstrap work:
 
 - clones the MateOS repo locally
 - creates `.env` from `.env.example`
