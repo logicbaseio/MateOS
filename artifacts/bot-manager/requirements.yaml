@@ -1,0 +1,17 @@
+packages:
+  "framer-motion": "For page transitions and micro-interactions"
+  "date-fns": "For formatting timestamps"
+  "lucide-react": "For beautiful consistent icons"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to merge tailwind classes safely"
+  "react-hook-form": "For robust form state management"
+  "@hookform/resolvers": "For zod validation integration with forms"
+
+images:
+  - path: "artifacts/bot-manager/public/images/dashboard-hero.png"
+    description: "Abstract minimal geometric background with soft glowing spheres in deep indigo, violet, and dark slate colors, conveying enterprise AI software"
+    aspect_ratio: "16:9"
+
+notes:
+  - Hooks are imported from @workspace/api-client-react
+  - Assumes Tailwind v4 inline theme configuration

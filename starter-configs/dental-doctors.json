@@ -1,0 +1,12 @@
+{
+  "category": "Dental and Doctors",
+  "botName": "Mate",
+  "bossName": "Clinic",
+  "timezone": "UTC",
+  "preferredMeetingTime": "morning",
+  "workdayStart": "08:00",
+  "workdayEnd": "17:00",
+  "meetingDurationMinutes": 30,
+  "breakBetweenMeetings": 15,
+  "notes": "Use MateOS to manage appointment intake, reschedules, confirmations, reminders, and front-desk triage. Ask about visit type, urgency, preferred doctor, and contact details. Do not provide medical advice."
+}

@@ -1,0 +1,12 @@
+{
+  "category": "Restaurants and Food",
+  "botName": "Mate",
+  "bossName": "Front Desk",
+  "timezone": "UTC",
+  "preferredMeetingTime": "afternoon",
+  "workdayStart": "10:00",
+  "workdayEnd": "22:00",
+  "meetingDurationMinutes": 30,
+  "breakBetweenMeetings": 10,
+  "notes": "Use MateOS to manage reservations, takeaway orders, table changes, event bookings, and guest follow-up. Ask about party size, preferred time, dietary notes, and phone number."
+}

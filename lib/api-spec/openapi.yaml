@@ -1,0 +1,1279 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Bot Manager API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: health
+    description: Health operations
+  - name: preferences
+    description: Boss scheduling preferences
+  - name: meeting-requests
+    description: Meeting request management
+  - name: conversations
+    description: Bot conversation logs
+  - name: amazon-alerts
+    description: Amazon alert routing
+  - name: team-channels
+    description: Team channel mappings
+  - name: dashboard
+    description: Dashboard statistics
+  - name: openai
+    description: OpenAI AI chat, image, and audio operations
+  - name: soul
+    description: Bot soul personality storage
+paths:
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect on success or failure.
+
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to the OIDC provider logout URL.
+
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeRequest'
+      responses:
+        '200':
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /preferences:
+    get:
+      operationId: getPreferences
+      tags: [preferences]
+      summary: Get boss scheduling preferences
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+    put:
+      operationId: updatePreferences
+      tags: [preferences]
+      summary: Update scheduling preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePreferencesBody"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+
+  /meeting-requests:
+    get:
+      operationId: listMeetingRequests
+      tags: [meeting-requests]
+      summary: List all meeting requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, declined, scheduled]
+      responses:
+        "200":
+          description: List of meeting requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MeetingRequest"
+    post:
+      operationId: createMeetingRequest
+      tags: [meeting-requests]
+      summary: Create a new meeting request (from team member)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMeetingRequestBody"
+      responses:
+        "201":
+          description: Created meeting request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingRequest"
+
+  /meeting-requests/{id}:
+    get:
+      operationId: getMeetingRequest
+      tags: [meeting-requests]
+      summary: Get a specific meeting request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meeting request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingRequest"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateMeetingRequest
+      tags: [meeting-requests]
+      summary: Update meeting request status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeetingRequestBody"
+      responses:
+        "200":
+          description: Updated meeting request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingRequest"
+        "404":
+          description: Not found
+
+  /meeting-requests/{id}/suggest:
+    post:
+      operationId: suggestMeetingTime
+      tags: [meeting-requests]
+      summary: AI suggests optimal meeting time
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: AI suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingSuggestion"
+        "404":
+          description: Not found
+
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: List bot conversation logs
+      parameters:
+        - name: botType
+          in: query
+          schema:
+            type: string
+            enum: [scheduler, amazon]
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /team-channels:
+    get:
+      operationId: listTeamChannels
+      tags: [team-channels]
+      summary: List team channel mappings
+      responses:
+        "200":
+          description: List of team channel mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamChannel"
+    post:
+      operationId: createTeamChannel
+      tags: [team-channels]
+      summary: Create a team channel mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeamChannelBody"
+      responses:
+        "201":
+          description: Created team channel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamChannel"
+
+  /team-channels/{id}:
+    patch:
+      operationId: updateTeamChannel
+      tags: [team-channels]
+      summary: Update a team channel mapping
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTeamChannelBody"
+      responses:
+        "200":
+          description: Updated team channel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamChannel"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTeamChannel
+      tags: [team-channels]
+      summary: Delete a team channel mapping
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /amazon-alerts:
+    get:
+      operationId: listAmazonAlerts
+      tags: [amazon-alerts]
+      summary: List Amazon alerts
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [new, routed, resolved, ignored]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+      responses:
+        "200":
+          description: List of Amazon alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AmazonAlert"
+
+  /amazon-alerts/{id}:
+    patch:
+      operationId: updateAmazonAlert
+      tags: [amazon-alerts]
+      summary: Update an Amazon alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAmazonAlertBody"
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AmazonAlert"
+        "404":
+          description: Not found
+
+  /amazon-alerts/process:
+    post:
+      operationId: processIncomingEmail
+      tags: [amazon-alerts]
+      summary: Process an incoming email from shared mailbox
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomingEmailBody"
+      responses:
+        "200":
+          description: Processing result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailProcessingResult"
+
+  /openai/conversations:
+    get:
+      operationId: listOpenaiConversations
+      tags: [openai]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiConversation"
+    post:
+      operationId: createOpenaiConversation
+      tags: [openai]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOpenaiConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversation"
+  /openai/conversations/{id}:
+    get:
+      operationId: getOpenaiConversation
+      tags: [openai]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteOpenaiConversation
+      tags: [openai]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+  /openai/conversations/{id}/messages:
+    post:
+      operationId: sendOpenaiMessage
+      tags: [openai]
+      summary: Send a text message and receive a streaming text response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOpenaiMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant text chunks
+          content:
+            text/event-stream: {}
+  /openai/linked-conversations:
+    post:
+      operationId: createLinkedConversations
+      tags: [openai]
+      summary: Create a linked boss+customer conversation pair in one shot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLinkedConversationsBody"
+      responses:
+        "201":
+          description: Created linked pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkedConversationPair"
+  /openai/linked-conversations/{id}:
+    get:
+      operationId: getLinkedConversationPair
+      tags: [openai]
+      summary: Get both sides of a linked conversation pair with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of either conversation in the linked pair
+      responses:
+        "200":
+          description: Both sides with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkedConversationPairWithMessages"
+        "404":
+          description: Not found
+  /openai/conversations/{id}/voice-messages:
+    post:
+      operationId: sendOpenaiVoiceMessage
+      tags: [openai]
+      summary: Send audio and receive a streaming voice response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOpenaiVoiceMessageBody"
+      responses:
+        "200":
+          description: SSE stream of transcript and audio chunks
+          content:
+            text/event-stream: {}
+
+  /soul:
+    get:
+      operationId: getSoul
+      tags: [soul]
+      summary: Get the current soul.md content
+      responses:
+        "200":
+          description: Soul content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SoulContent"
+    put:
+      operationId: updateSoul
+      tags: [soul]
+      summary: Save updated soul.md content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSoulBody"
+      responses:
+        "200":
+          description: Updated soul content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SoulContent"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    DashboardStats:
+      type: object
+      properties:
+        pendingMeetings:
+          type: integer
+        todaysMeetings:
+          type: integer
+        activeAlerts:
+          type: integer
+        resolvedAlerts:
+          type: integer
+        totalConversations:
+          type: integer
+        teamChannels:
+          type: integer
+      required:
+        - pendingMeetings
+        - todaysMeetings
+        - activeAlerts
+        - resolvedAlerts
+        - totalConversations
+        - teamChannels
+
+    Preferences:
+      type: object
+      properties:
+        id:
+          type: integer
+        bossName:
+          type: string
+        timezone:
+          type: string
+        currentCity:
+          type: string
+        mood:
+          type: string
+          enum: [available, busy, do_not_disturb, flexible]
+        preferredMeetingTime:
+          type: string
+          enum: [morning, afternoon, evening, night]
+        maxMeetingsPerDay:
+          type: integer
+        meetingDurationMinutes:
+          type: integer
+        breakBetweenMeetings:
+          type: integer
+        notes:
+          type: string
+        workdayStart:
+          type: string
+          description: "Start of available window in HH:MM 24h format (e.g. '02:00')"
+        workdayEnd:
+          type: string
+          description: "End of available window in HH:MM 24h format (e.g. '06:00')"
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - bossName
+        - timezone
+        - currentCity
+        - mood
+        - preferredMeetingTime
+        - maxMeetingsPerDay
+        - meetingDurationMinutes
+        - breakBetweenMeetings
+        - notes
+        - updatedAt
+
+    UpdatePreferencesBody:
+      type: object
+      properties:
+        bossName:
+          type: string
+        timezone:
+          type: string
+        currentCity:
+          type: string
+        mood:
+          type: string
+          enum: [available, busy, do_not_disturb, flexible]
+        preferredMeetingTime:
+          type: string
+          enum: [morning, afternoon, evening, night]
+        maxMeetingsPerDay:
+          type: integer
+        meetingDurationMinutes:
+          type: integer
+        breakBetweenMeetings:
+          type: integer
+        notes:
+          type: string
+        workdayStart:
+          type: string
+          description: "Start of available window in HH:MM 24h format (e.g. '02:00')"
+        workdayEnd:
+          type: string
+          description: "End of available window in HH:MM 24h format (e.g. '06:00')"
+
+    MeetingRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        requesterName:
+          type: string
+        requesterEmail:
+          type: string
+        purpose:
+          type: string
+        urgency:
+          type: string
+          enum: [low, medium, high, critical]
+        preferredDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, approved, declined, scheduled]
+        scheduledTime:
+          type: ["string", "null"]
+          format: date-time
+        botSuggestion:
+          type: ["string", "null"]
+        bossResponse:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - requesterName
+        - requesterEmail
+        - purpose
+        - urgency
+        - preferredDate
+        - status
+        - scheduledTime
+        - botSuggestion
+        - bossResponse
+        - createdAt
+        - updatedAt
+
+    CreateMeetingRequestBody:
+      type: object
+      properties:
+        requesterName:
+          type: string
+        requesterEmail:
+          type: string
+        purpose:
+          type: string
+        urgency:
+          type: string
+          enum: [low, medium, high, critical]
+        preferredDate:
+          type: string
+          format: date-time
+      required:
+        - requesterName
+        - requesterEmail
+        - purpose
+        - urgency
+        - preferredDate
+
+    UpdateMeetingRequestBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, declined, scheduled]
+        scheduledTime:
+          type: string
+          format: date-time
+        bossResponse:
+          type: string
+
+    MeetingSuggestion:
+      type: object
+      properties:
+        suggestedTime:
+          type: string
+          format: date-time
+        reasoning:
+          type: string
+        alternativeTimes:
+          type: array
+          items:
+            type: string
+            format: date-time
+        contextNotes:
+          type: string
+      required:
+        - suggestedTime
+        - reasoning
+        - alternativeTimes
+        - contextNotes
+
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        botType:
+          type: string
+          enum: [scheduler, amazon]
+        participant:
+          type: string
+        messages:
+          type: string
+        summary:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - botType
+        - participant
+        - messages
+        - summary
+        - createdAt
+
+    TeamChannel:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamName:
+          type: string
+        channelName:
+          type: string
+        amazonAccountId:
+          type: string
+        amazonAccountName:
+          type: string
+        alertTypes:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - teamName
+        - channelName
+        - amazonAccountId
+        - amazonAccountName
+        - alertTypes
+        - isActive
+        - createdAt
+
+    CreateTeamChannelBody:
+      type: object
+      properties:
+        teamName:
+          type: string
+        channelName:
+          type: string
+        amazonAccountId:
+          type: string
+        amazonAccountName:
+          type: string
+        alertTypes:
+          type: array
+          items:
+            type: string
+      required:
+        - teamName
+        - channelName
+        - amazonAccountId
+        - amazonAccountName
+        - alertTypes
+
+    UpdateTeamChannelBody:
+      type: object
+      properties:
+        teamName:
+          type: string
+        channelName:
+          type: string
+        amazonAccountId:
+          type: string
+        amazonAccountName:
+          type: string
+        alertTypes:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+
+    AmazonAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+        subject:
+          type: string
+        body:
+          type: string
+        senderEmail:
+          type: string
+        amazonAccountId:
+          type: string
+        alertType:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+        status:
+          type: string
+          enum: [new, routed, resolved, ignored]
+        routedToTeam:
+          type: ["string", "null"]
+        routedToChannel:
+          type: ["string", "null"]
+        receivedAt:
+          type: string
+          format: date-time
+        processedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - subject
+        - body
+        - senderEmail
+        - amazonAccountId
+        - alertType
+        - priority
+        - status
+        - routedToTeam
+        - routedToChannel
+        - receivedAt
+        - processedAt
+
+    UpdateAmazonAlertBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [new, routed, resolved, ignored]
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+
+    IncomingEmailBody:
+      type: object
+      properties:
+        subject:
+          type: string
+        body:
+          type: string
+        senderEmail:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+      required:
+        - subject
+        - body
+        - senderEmail
+        - receivedAt
+
+    EmailProcessingResult:
+      type: object
+      properties:
+        alertCreated:
+          type: boolean
+        alertId:
+          type: ["integer", "null"]
+        amazonAccountId:
+          type: string
+        alertType:
+          type: string
+        priority:
+          type: string
+        routedTo:
+          type: ["string", "null"]
+        message:
+          type: string
+      required:
+        - alertCreated
+        - alertId
+        - amazonAccountId
+        - alertType
+        - priority
+        - routedTo
+        - message
+
+    OpenaiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        viewpoint:
+          type: string
+        customerName:
+          type: ["string", "null"]
+        linkedConvoId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - viewpoint
+        - createdAt
+
+    OpenaiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+
+    CreateOpenaiConversationBody:
+      type: object
+      properties:
+        title:
+          type: string
+        viewpoint:
+          type: string
+        customerName:
+          type: string
+        linkedConvoId:
+          type: integer
+      required:
+        - title
+
+    CreateLinkedConversationsBody:
+      type: object
+      properties:
+        customerName:
+          type: string
+      required: []
+
+    LinkedConversationPair:
+      type: object
+      properties:
+        customerConvo:
+          $ref: "#/components/schemas/OpenaiConversation"
+        bossConvo:
+          $ref: "#/components/schemas/OpenaiConversation"
+      required:
+        - customerConvo
+        - bossConvo
+
+    LinkedConversationPairWithMessages:
+      type: object
+      properties:
+        customerConvo:
+          $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        bossConvo:
+          $ref: "#/components/schemas/OpenaiConversationWithMessages"
+      required:
+        - customerConvo
+        - bossConvo
+
+    SendOpenaiMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+        viewpoint:
+          type: string
+          description: "boss = owner talking to assistant; customer = customer talking to the assistant"
+        customerName:
+          type: string
+          description: Name of the customer, used when viewpoint is customer
+      required:
+        - content
+
+    SendOpenaiVoiceMessageBody:
+      type: object
+      properties:
+        audio:
+          type: string
+          description: Base64-encoded audio data
+        viewpoint:
+          type: string
+          description: "boss = owner talking to assistant; customer = customer talking to the assistant"
+        customerName:
+          type: string
+          description: Name of the customer, used when viewpoint is customer
+      required:
+        - audio
+
+    OpenaiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenaiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+
+    OpenaiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SoulContent:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    UpdateSoulBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    AuthUser:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          nullable: true
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        profileImageUrl:
+          type: string
+          nullable: true
+
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+    SessionCookie:
+      name: session
+      in: cookie
+      required: false
+      schema:
+        type: string

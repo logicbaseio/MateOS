@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Bot Manager"
+version = "1.0.0"
+id = "artifacts/bot-manager"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 24048
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/bot-manager run dev"
+
+[services.env]
+PORT = "24048"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/bot-manager", "run", "build"]
+publicDir = "artifacts/bot-manager/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

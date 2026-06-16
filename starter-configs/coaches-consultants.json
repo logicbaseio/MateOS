@@ -1,0 +1,12 @@
+{
+  "category": "Coaches and Consultants",
+  "botName": "Mate",
+  "bossName": "Advisor",
+  "timezone": "UTC",
+  "preferredMeetingTime": "afternoon",
+  "workdayStart": "09:00",
+  "workdayEnd": "18:00",
+  "meetingDurationMinutes": 45,
+  "breakBetweenMeetings": 15,
+  "notes": "Use MateOS to qualify leads, book discovery calls, reschedule sessions, and capture context before paid meetings. Ask about goals, company, budget, timezone, and urgency."
+}
