@@ -263,7 +263,7 @@ export function HumeVoiceChat({
         mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
         // Reset boss message accumulator for next call
         bossMessagesRef.current = [];
-        // Brief Sunny with a final call summary after the call ends
+        // Brief the boss with a final call summary after the call ends
         if (customerConvoId) {
           fetch(`/api/voice/brief-boss/${customerConvoId}`, { method: "POST" }).catch(() => {});
         }

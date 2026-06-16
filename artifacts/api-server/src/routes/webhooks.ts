@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db, channelConfigs, channelSessions, sunnyNotifications, preferencesTable } from "@workspace/db";
+import { db, channelConfigs, channelSessions, bossNotifications, preferencesTable } from "@workspace/db";
 import { runChannelBrainQuery, runBrainQuery } from "../brain/engine";
 import {
   getBossContact,
@@ -128,7 +128,7 @@ async function processChannelMessage(
 async function isBossMessage(channelType: string, externalId: string): Promise<boolean> {
   const incomingNorm = externalId.replace(/\D/g, "");
 
-  // Check 1: sunny_contact record — normalize both sides for WhatsApp (handles +, spaces, dashes)
+  // Check 1: boss contact record — normalize both sides for WhatsApp (handles +, spaces, dashes)
   const contact = await getBossContact();
   if (contact && contact.channelType === channelType) {
     const storedNorm = channelType === "whatsapp"
@@ -152,8 +152,8 @@ async function isBossMessage(channelType: string, externalId: string): Promise<b
 
   // Log mismatch for debugging
   const storedDesc = contact
-    ? `sunny_contact: ${contact.channelType}/${contact.externalId}`
-    : "sunny_contact: (none)";
+    ? `boss_contact: ${contact.channelType}/${contact.externalId}`
+    : "boss_contact: (none)";
   console.log(`[boss-detect] NOT boss — incoming: ${channelType}/${externalId} | ${storedDesc}`);
   return false;
 }
@@ -167,14 +167,14 @@ async function refreshBossContact(channelType: string, externalId: string): Prom
   try {
     const configJson = JSON.stringify({ channelType, externalId });
     const existing = await db.select().from(channelConfigs)
-      .where(eq(channelConfigs.channelType, "sunny_contact")).limit(1);
+      .where(eq(channelConfigs.channelType, "boss_contact")).limit(1);
     if (existing.length > 0) {
       await db.update(channelConfigs)
         .set({ config: configJson, status: "connected", updatedAt: new Date() })
-        .where(eq(channelConfigs.channelType, "sunny_contact"));
+        .where(eq(channelConfigs.channelType, "boss_contact"));
     } else {
       await db.insert(channelConfigs).values({
-        channelType: "sunny_contact",
+        channelType: "boss_contact",
         config: configJson,
         status: "connected",
         webhookSecret: null,
@@ -223,12 +223,12 @@ async function relayThroughAssistant(
   // After handling this one, surface the next unanswered request naturally — one at a time
   const remaining = await db
     .select()
-    .from(sunnyNotifications)
+    .from(bossNotifications)
     .where(and(
-      eq(sunnyNotifications.status, "pending"),
+      eq(bossNotifications.status, "pending"),
       // Exclude the one we just handled (already marked replied before calling this)
     ))
-    .orderBy(desc(sunnyNotifications.createdAt))
+    .orderBy(desc(bossNotifications.createdAt))
     .limit(1);
 
   if (remaining.length > 0) {
@@ -251,8 +251,8 @@ async function handleBossReply(channelType: string, text: string): Promise<void>
 
     const [notification] = await db
       .select()
-      .from(sunnyNotifications)
-      .where(and(eq(sunnyNotifications.id, notificationId), eq(sunnyNotifications.status, "pending")))
+      .from(bossNotifications)
+      .where(and(eq(bossNotifications.id, notificationId), eq(bossNotifications.status, "pending")))
       .limit(1);
 
     if (!notification) {
@@ -260,9 +260,9 @@ async function handleBossReply(channelType: string, text: string): Promise<void>
       return;
     }
 
-    await db.update(sunnyNotifications)
-      .set({ status: "replied", sunnyReply: replyText, updatedAt: new Date() })
-      .where(eq(sunnyNotifications.id, notification.id));
+    await db.update(bossNotifications)
+      .set({ status: "replied", bossReply: replyText, updatedAt: new Date() })
+      .where(eq(bossNotifications.id, notification.id));
     await db.update(channelSessions)
       .set({ status: "active", updatedAt: new Date() })
       .where(eq(channelSessions.id, Number(notification.sessionId)));

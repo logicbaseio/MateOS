@@ -10,7 +10,7 @@ import {
   amazonAlertsTable,
   teamChannelsTable,
   conversations,
-  sunnyNotifications,
+  bossNotifications,
   channelSessions,
   bossMemoryTable,
   customersTable,
@@ -934,13 +934,13 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         const statusFilter = typeof args.status === "string" ? args.status : undefined;
         const limit = Math.min(typeof args.limit === "number" ? args.limit : 10, 50);
         const rows = await db
-          .select().from(sunnyNotifications)
-          .where(statusFilter ? eq(sunnyNotifications.status, statusFilter) : undefined)
-          .orderBy(desc(sunnyNotifications.createdAt))
+          .select().from(bossNotifications)
+          .where(statusFilter ? eq(bossNotifications.status, statusFilter) : undefined)
+          .orderBy(desc(bossNotifications.createdAt))
           .limit(limit);
         if (rows.length === 0) return "No notifications found.";
         return rows.map(n =>
-          `[ID:${n.id}] ${n.status.toUpperCase()} | Channel: ${n.channelType} | ${new Date(n.createdAt).toLocaleString()}\n  ${n.notificationText}${n.sunnyReply ? `\n  Your reply: ${n.sunnyReply}` : ""}`
+          `[ID:${n.id}] ${n.status.toUpperCase()} | Channel: ${n.channelType} | ${new Date(n.createdAt).toLocaleString()}\n  ${n.notificationText}${n.bossReply ? `\n  Your reply: ${n.bossReply}` : ""}`
         ).join("\n\n");
       }
 
@@ -1248,13 +1248,13 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         const [prefs] = await db.select().from(preferencesTable).limit(1);
         const bossPhone = prefs?.bossPhone?.trim() ?? "";
         if (!bossPhone) {
-          return "Cannot place call: bossPhone is not configured in preferences. Ask Sunny to set his phone number first.";
+          return "Cannot place call: bossPhone is not configured in preferences. Ask the boss to set a phone number first.";
         }
         const reason = typeof args.reason === "string" ? args.reason : "Urgent customer escalation";
         console.log(`[brain] call_boss triggered. Reason: ${reason}. Calling: ${bossPhone}`);
         const result = await callBossOutbound(bossPhone);
         if (result.success) {
-          return `📞 Boss call initiated successfully. Twilio is dialing ${bossPhone} (CallSid: ${result.callSid ?? "unknown"}). When Sunny picks up, Zara will relay the situation and take his instructions.`;
+          return `📞 Boss call initiated successfully. Twilio is dialing ${bossPhone} (CallSid: ${result.callSid ?? "unknown"}). When the boss picks up, the assistant will relay the situation and take instructions.`;
         }
         return `Failed to place call to boss: ${result.error ?? "Unknown error"}`;
       }
@@ -2172,7 +2172,7 @@ export async function runChannelBrainQuery(
           const notifMsg = typeof args.message === "string" ? args.message : "";
           const notifCtx = typeof args.context === "string" ? args.context : "";
 
-          const [inserted] = await db.insert(sunnyNotifications).values({
+          const [inserted] = await db.insert(bossNotifications).values({
             channelType,
             externalId,
             sessionId: String(sessionId),
@@ -2184,7 +2184,7 @@ export async function runChannelBrainQuery(
           notificationId = inserted?.id ?? null;
 
           await db.update(channelSessions)
-            .set({ status: "waiting_sunny", updatedAt: new Date() })
+            .set({ status: "waiting_boss", updatedAt: new Date() })
             .where(eq(channelSessions.id, sessionId));
 
           const notifId = inserted?.id ?? null;
@@ -2196,12 +2196,12 @@ export async function runChannelBrainQuery(
 
           if (!delivered && notifId) {
             // Mark the notification as delivery_failed so the dashboard shows it clearly
-            await db.update(sunnyNotifications)
+            await db.update(bossNotifications)
               .set({ status: "delivery_failed", updatedAt: new Date() })
-              .where(eq(sunnyNotifications.id, notifId));
-            result = `Notification recorded (ID: ${notifId}) but could NOT be delivered to Sunny via WhatsApp. The delivery failed — Sunny's WhatsApp number may not have an active session with this bot. He can still see it on the dashboard.`;
+              .where(eq(bossNotifications.id, notifId));
+            result = `Notification recorded (ID: ${notifId}) but could not be delivered to the boss via WhatsApp. The boss can still see it on the dashboard.`;
           } else {
-            result = `Notification sent to Sunny (ID: ${notificationId ?? "?"}). He will respond soon.`;
+            result = `Notification sent to the boss (ID: ${notificationId ?? "?"}). A reply should arrive soon.`;
           }
         } else if (tc.function.name === "lookup_customer") {
           // Track customer from DB for structured VIP/Premium policy enforcement
@@ -2296,7 +2296,7 @@ export async function runChannelBrainQuery(
       const tierLabel = trackedCustomer!.tier.toUpperCase();
       const revenueStr = trackedCustomer!.totalRevenue ? `${trackedCustomer!.currency} ${trackedCustomer!.totalRevenue}` : "unknown";
       const escalationMsg = `${tierLabel} customer ${trackedCustomer!.name} was about to receive a decline. Lifetime revenue: ${revenueStr}. They requested a meeting that may be outside preferences. What would you like me to do?`;
-      const [inserted] = await db.insert(sunnyNotifications).values({
+      const [inserted] = await db.insert(bossNotifications).values({
         channelType,
         externalId,
         sessionId: String(sessionId),
@@ -2307,7 +2307,7 @@ export async function runChannelBrainQuery(
       notificationId = inserted?.id ?? null;
 
       await db.update(channelSessions)
-        .set({ status: "waiting_sunny", updatedAt: new Date() })
+        .set({ status: "waiting_boss", updatedAt: new Date() })
         .where(eq(channelSessions.id, sessionId));
 
       const revenueNote = revenueStr !== "unknown" ? ` (lifetime revenue: ${revenueStr})` : "";
@@ -2319,14 +2319,14 @@ export async function runChannelBrainQuery(
 
       const escalationDelivered = await deliverMessageToBoss(sunnyMsg);
       if (!escalationDelivered && escalationNotifId) {
-        await db.update(sunnyNotifications)
+        await db.update(bossNotifications)
           .set({ status: "delivery_failed", updatedAt: new Date() })
-          .where(eq(sunnyNotifications.id, escalationNotifId));
+          .where(eq(bossNotifications.id, escalationNotifId));
       }
 
       // Override final text to avoid a flat decline for VIP/Premium
       const tierFriendly = trackedCustomer!.tier === "premium" ? "Premium" : "VIP";
-      finalText = `I've flagged this directly to Sunny — as a valued ${tierFriendly} client, he'll personally get back to you very soon with a confirmed answer.`;
+      finalText = `I've flagged this directly to the boss. As a valued ${tierFriendly} client, you'll get a confirmed answer very soon.`;
     } catch (guardErr) {
       console.error("[engine] VIP/Premium guard escalation error:", guardErr);
     }

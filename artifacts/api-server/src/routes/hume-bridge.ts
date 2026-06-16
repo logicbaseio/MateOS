@@ -155,7 +155,7 @@ const BOSS_TOOL_DEFS: Record<string, unknown>[] = [
   {
     type: "function",
     name: "check_calendar",
-    description: "Read upcoming calendar events from Microsoft 365. Call this when Sunny asks about his schedule.",
+    description: "Read upcoming calendar events from Microsoft 365. Call this when the boss asks about the schedule.",
     parameters: {
       type: "object",
       properties: {
@@ -167,7 +167,7 @@ const BOSS_TOOL_DEFS: Record<string, unknown>[] = [
   {
     type: "function",
     name: "check_emails",
-    description: "Read recent emails from Sunny's Outlook inbox.",
+    description: "Read recent emails from the boss's Outlook inbox.",
     parameters: {
       type: "object",
       properties: {
@@ -180,7 +180,7 @@ const BOSS_TOOL_DEFS: Record<string, unknown>[] = [
   {
     type: "function",
     name: "check_teams_chats",
-    description: "Read Sunny's recent Microsoft Teams chats and messages.",
+    description: "Read the boss's recent Microsoft Teams chats and messages.",
     parameters: {
       type: "object",
       properties: {
@@ -192,7 +192,7 @@ const BOSS_TOOL_DEFS: Record<string, unknown>[] = [
   {
     type: "function",
     name: "get_pending_meetings",
-    description: "List pending meeting requests that are waiting for Sunny's approval.",
+    description: "List pending meeting requests that are waiting for the boss's approval.",
     parameters: { type: "object", properties: {}, required: [] },
   },
   {
@@ -212,13 +212,13 @@ const BOSS_TOOL_DEFS: Record<string, unknown>[] = [
   {
     type: "function",
     name: "get_preferences",
-    description: "Read Sunny's scheduling preferences: timezone, mood, max meetings per day, etc.",
+    description: "Read the boss's scheduling preferences: timezone, mood, max meetings per day, etc.",
     parameters: { type: "object", properties: {}, required: [] },
   },
   {
     type: "function",
     name: "update_mood",
-    description: "Update Sunny's current mood/availability. Useful when Sunny says he's busy, tired, or available.",
+    description: "Update the boss's current mood or availability. Useful when the boss says they are busy, tired, or available.",
     parameters: {
       type: "object",
       properties: {
@@ -231,7 +231,7 @@ const BOSS_TOOL_DEFS: Record<string, unknown>[] = [
   {
     type: "function",
     name: "recall_boss_memory",
-    description: "Retrieve facts about Sunny from persistent memory. Call this any time you need to know something specific about Sunny — his preferences, travel plans, people he knows, rules he follows, or his current situation. Combine sections and tags for associative recall. If no filters given, returns everything.",
+    description: "Retrieve facts about the boss from persistent memory. Call this any time you need to know something specific — preferences, travel plans, people, rules, or current situation. Combine sections and tags for associative recall. If no filters are given, returns everything.",
     parameters: {
       type: "object",
       properties: {

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, asc, desc } from "drizzle-orm";
-import { db, conversations, messages, preferencesTable, bossMemoryTable, sunnyNotifications } from "@workspace/db";
+import { db, conversations, messages, preferencesTable, bossMemoryTable, bossNotifications } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { voiceChatStream, ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import { getLLMClient } from "../../lib/llm";
@@ -460,7 +460,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
                 const notifMsg = typeof args.message === "string" ? args.message : "";
                 const notifCtx = typeof args.context === "string" ? args.context : "";
 
-                const [inserted] = await db.insert(sunnyNotifications).values({
+                const [inserted] = await db.insert(bossNotifications).values({
                   channelType: "web",
                   externalId: String(params.data.id),
                   sessionId: String(params.data.id),

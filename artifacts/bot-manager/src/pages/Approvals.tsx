@@ -18,7 +18,7 @@ interface Notification {
   notificationText: string;
   customerContext: string | null;
   status: NotifStatus;
-  sunnyReply: string | null;
+  bossReply: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -159,9 +159,9 @@ function RequestRow({
             {n.notificationText}
           </p>
 
-          {n.sunnyReply && !isExpanded && (
+          {n.bossReply && !isExpanded && (
             <p className="text-[11px] text-[#0078d4] mt-1 truncate">
-              <span className="font-medium">Your reply: </span>{n.sunnyReply}
+              <span className="font-medium">Your reply: </span>{n.bossReply}
             </p>
           )}
         </div>
@@ -198,10 +198,10 @@ function RequestRow({
               </div>
 
               {/* Replied view */}
-              {n.status === "replied" && n.sunnyReply && (
+              {n.status === "replied" && n.bossReply && (
                 <div className="rounded-xl bg-[#0078d4]/5 border border-[#0078d4]/20 px-3 py-2">
                   <p className="text-[11px] font-semibold text-[#0078d4] uppercase tracking-wider mb-1">Your Reply</p>
-                  <p className="text-sm text-foreground leading-relaxed">{n.sunnyReply}</p>
+                  <p className="text-sm text-foreground leading-relaxed">{n.bossReply}</p>
                 </div>
               )}
 

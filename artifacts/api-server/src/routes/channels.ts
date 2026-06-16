@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, channelConfigs, sunnyNotifications, channelSessions } from "@workspace/db";
+import { db, channelConfigs, bossNotifications, channelSessions } from "@workspace/db";
 import { randomUUID } from "crypto";
 import { deliverReplyToChannel } from "./webhooks";
 import { getBossContact } from "../lib/messenger";
@@ -374,14 +374,14 @@ router.post("/channels/boss-brain/connect", async (req, res): Promise<void> => {
       if (bossPersonalNumber) {
         const contactJson = JSON.stringify({ channelType: "whatsapp", externalId: bossPersonalNumber });
         const existingContact = await db.select().from(channelConfigs)
-          .where(eq(channelConfigs.channelType, "sunny_contact")).limit(1);
+          .where(eq(channelConfigs.channelType, "boss_contact")).limit(1);
         if (existingContact.length > 0) {
           await db.update(channelConfigs)
             .set({ config: contactJson, status: "connected", updatedAt: new Date() })
-            .where(eq(channelConfigs.channelType, "sunny_contact"));
+            .where(eq(channelConfigs.channelType, "boss_contact"));
         } else {
           await db.insert(channelConfigs).values({
-            channelType: "sunny_contact",
+            channelType: "boss_contact",
             config: contactJson,
             status: "connected",
             webhookSecret: null,
@@ -590,12 +590,12 @@ router.post("/channels/:type/disconnect", async (req, res): Promise<void> => {
   res.json({ success: true });
 });
 
-router.get("/channels/sunny-contact", async (_req, res): Promise<void> => {
+router.get("/channels/boss-contact", async (_req, res): Promise<void> => {
   const contact = await getBossContact();
   res.json(contact ?? { channelType: "", externalId: "" });
 });
 
-router.post("/channels/sunny-contact", async (req, res): Promise<void> => {
+router.post("/channels/boss-contact", async (req, res): Promise<void> => {
   const { channelType, externalId } = req.body as { channelType?: string; externalId?: string };
 
   if (!channelType || !externalId?.trim()) {
@@ -606,7 +606,7 @@ router.post("/channels/sunny-contact", async (req, res): Promise<void> => {
   const existing = await db
     .select()
     .from(channelConfigs)
-    .where(eq(channelConfigs.channelType, "sunny_contact"))
+    .where(eq(channelConfigs.channelType, "boss_contact"))
     .limit(1);
 
   // For WhatsApp, normalize to digits-only so any format the user types always matches
@@ -619,10 +619,10 @@ router.post("/channels/sunny-contact", async (req, res): Promise<void> => {
     await db
       .update(channelConfigs)
       .set({ config: configJson, status: "connected", updatedAt: new Date() })
-      .where(eq(channelConfigs.channelType, "sunny_contact"));
+      .where(eq(channelConfigs.channelType, "boss_contact"));
   } else {
     await db.insert(channelConfigs).values({
-      channelType: "sunny_contact",
+      channelType: "boss_contact",
       config: configJson,
       status: "connected",
       webhookSecret: null,
@@ -633,11 +633,11 @@ router.post("/channels/sunny-contact", async (req, res): Promise<void> => {
   res.json({ success: true });
 });
 
-router.delete("/channels/sunny-contact", async (_req, res): Promise<void> => {
+router.delete("/channels/boss-contact", async (_req, res): Promise<void> => {
   await db
     .update(channelConfigs)
     .set({ status: "disconnected", updatedAt: new Date() })
-    .where(eq(channelConfigs.channelType, "sunny_contact"));
+    .where(eq(channelConfigs.channelType, "boss_contact"));
   res.json({ success: true });
 });
 
@@ -646,8 +646,8 @@ router.get("/channels/notifications", async (req, res): Promise<void> => {
 
   const notifications = await db
     .select()
-    .from(sunnyNotifications)
-    .orderBy(desc(sunnyNotifications.createdAt));
+    .from(bossNotifications)
+    .orderBy(desc(bossNotifications.createdAt));
 
   const needsAction = (n: { status: string }) =>
     n.status === "pending" || n.status === "delivery_failed";
@@ -674,8 +674,8 @@ router.post("/channels/notifications/:id/reply", async (req, res): Promise<void>
 
   const [notification] = await db
     .select()
-    .from(sunnyNotifications)
-    .where(eq(sunnyNotifications.id, id))
+    .from(bossNotifications)
+    .where(eq(bossNotifications.id, id))
     .limit(1);
 
   if (!notification) {
@@ -684,9 +684,9 @@ router.post("/channels/notifications/:id/reply", async (req, res): Promise<void>
   }
 
   await db
-    .update(sunnyNotifications)
-    .set({ status: "replied", sunnyReply: reply.trim(), updatedAt: new Date() })
-    .where(eq(sunnyNotifications.id, id));
+    .update(bossNotifications)
+    .set({ status: "replied", bossReply: reply.trim(), updatedAt: new Date() })
+    .where(eq(bossNotifications.id, id));
 
   await db
     .update(channelSessions)
@@ -711,16 +711,16 @@ router.post("/channels/notifications/:id/dismiss", async (req, res): Promise<voi
 
   const [notification] = await db
     .select()
-    .from(sunnyNotifications)
-    .where(eq(sunnyNotifications.id, id))
+    .from(bossNotifications)
+    .where(eq(bossNotifications.id, id))
     .limit(1);
 
   if (!notification) { res.status(404).json({ error: "Not found" }); return; }
 
   await db
-    .update(sunnyNotifications)
+    .update(bossNotifications)
     .set({ status: "dismissed", updatedAt: new Date() })
-    .where(eq(sunnyNotifications.id, id));
+    .where(eq(bossNotifications.id, id));
 
   await db
     .update(channelSessions)

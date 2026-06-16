@@ -9,7 +9,7 @@ export * from "./messages";
 export * from "./brainMessages";
 export * from "./channelConfigs";
 export * from "./channelSessions";
-export * from "./sunnyNotifications";
+export * from "./bossNotifications";
 export * from "./microsoftTokens";
 export * from "./bossMemory";
 export * from "./customers";

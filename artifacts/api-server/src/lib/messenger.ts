@@ -1,24 +1,28 @@
 import { eq } from "drizzle-orm";
 import { db, channelConfigs } from "@workspace/db";
 
+const BOSS_CONTACT_CHANNEL_TYPES = ["boss_contact", "sunny_contact"] as const;
+
 export interface BossContact {
   channelType: string;
   externalId: string;
 }
 
 export async function getBossContact(): Promise<BossContact | null> {
-  const [row] = await db
-    .select()
-    .from(channelConfigs)
-    .where(eq(channelConfigs.channelType, "sunny_contact"))
-    .limit(1);
+  for (const channelType of BOSS_CONTACT_CHANNEL_TYPES) {
+    const [row] = await db
+      .select()
+      .from(channelConfigs)
+      .where(eq(channelConfigs.channelType, channelType))
+      .limit(1);
 
-  if (!row) return null;
+    if (!row) continue;
 
-  try {
-    const cfg = JSON.parse(row.config) as BossContact;
-    if (cfg.channelType && cfg.externalId) return cfg;
-  } catch { /* ignore */ }
+    try {
+      const cfg = JSON.parse(row.config) as BossContact;
+      if (cfg.channelType && cfg.externalId) return cfg;
+    } catch { /* ignore */ }
+  }
   return null;
 }
 
@@ -125,7 +129,7 @@ async function getWhatsAppSendingCredentials(): Promise<Record<string, string> |
 export async function deliverMessageToBoss(text: string): Promise<boolean> {
   const contact = await getBossContact();
   if (!contact) {
-    console.warn("[messenger/deliverMessageToBoss] No sunny_contact configured — notification not delivered");
+    console.warn("[messenger/deliverMessageToBoss] No boss_contact configured — notification not delivered");
     return false;
   }
 

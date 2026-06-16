@@ -226,7 +226,7 @@ function BossContactCard({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/channels/sunny-contact", {
+      const res = await fetch("/api/channels/boss-contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelType, externalId }),
@@ -245,7 +245,7 @@ function BossContactCard({
   const remove = async () => {
     setRemoving(true);
     try {
-      await fetch("/api/channels/sunny-contact", { method: "DELETE" });
+      await fetch("/api/channels/boss-contact", { method: "DELETE" });
       setChannelType("");
       setExternalId("");
       setEditing(true);
@@ -1639,7 +1639,7 @@ export default function Channels() {
     try {
       const [statusRes, contactRes, bossBrainRes, voiceRes] = await Promise.all([
         fetch("/api/channels"),
-        fetch("/api/channels/sunny-contact"),
+        fetch("/api/channels/boss-contact"),
         fetch("/api/channels/boss-brain"),
         fetch("/api/channels/voice/status"),
       ]);

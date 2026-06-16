@@ -9,7 +9,7 @@ import { applyNames, loadNames } from "../brain/engine";
 const router = Router();
 
 // Track the auto-brief message ID per customer conversation so we UPDATE it
-// each time rather than stacking many brief messages in Sunny's panel.
+// each time rather than stacking many brief messages in the boss panel.
 const autoBriefMessageId = new Map<number, number>();
 
 async function loadSoulContent(): Promise<string> {
@@ -21,7 +21,7 @@ async function loadSoulContent(): Promise<string> {
 }
 
 /**
- * Build the system prompt that makes Zara brief Sunny about the live call.
+ * Build the system prompt that makes the assistant brief the boss about the live call.
  * STRICT: Only report what the caller explicitly said. No extrapolation.
  */
 async function buildVoiceBriefPrompt(soulContent: string, transcript: Array<{ role: string; content: string }>) {
@@ -141,8 +141,8 @@ router.post("/voice/log/:convoId", async (req, res): Promise<void> => {
 
   res.json(msg);
 
-  // Brief Sunny only once — after the 4th caller message, by which point
-  // Zara has collected enough info (name, purpose, timing) to make a real ask.
+  // Brief the boss only once — after the 4th caller message, by which point
+  // the assistant has collected enough info (name, purpose, timing) to make a real ask.
   // Firing on message #1 causes hallucination; the end-of-call summary covers the rest.
   if (role === "user") {
     const userMsgCount = await db
@@ -203,7 +203,7 @@ router.post("/voice/brief-boss/:customerConvoId", async (req, res): Promise<void
     return;
   }
 
-  // End-of-call summary always appends as a fresh message so Sunny can see
+  // End-of-call summary always appends as a fresh message so the boss can see
   // the final wrap-up separately from the mid-call updates.
   autoBriefMessageId.delete(customerConvoId); // Reset so next call starts fresh
   const [savedMsg] = await db

@@ -5,8 +5,8 @@
  *   Customer sends voice note
  *   → Download audio from WhatsApp Media API
  *   → Transcribe with OpenAI Whisper (via AI integrations proxy)
- *   → Run transcribed text through Zara (runChannelBrainQuery)
- *   → Convert Zara's reply to speech with ElevenLabs TTS
+ *   → Run transcribed text through the assistant (runChannelBrainQuery)
+ *   → Convert the assistant's reply to speech with ElevenLabs TTS
  *   → Upload audio to WhatsApp and send back as a voice note
  */
 
@@ -289,7 +289,7 @@ async function getUrduDictionaryLocator(
  * Returns null if no TTS service is available — caller falls back to text reply.
  */
 export async function textToSpeech(text: string): Promise<Buffer | null> {
-  // --- Option 1: ElevenLabs TTS (preferred — Zara's exact voice, requires paid plan) ---
+  // --- Option 1: ElevenLabs TTS (preferred — the assistant's exact voice, requires paid plan) ---
   try {
     const prefs = await getPrefs();
     const apiKey = prefs?.elevenLabsApiKey?.trim() || process.env.ElevenLabs_API_Key?.trim();
@@ -457,7 +457,7 @@ export async function sendWhatsAppVoiceNote(
 }
 
 /**
- * Full pipeline: receive WhatsApp audio → transcribe → run through Zara → reply as voice note.
+ * Full pipeline: receive WhatsApp audio → transcribe → run through the assistant → reply as voice note.
  * Falls back to a text reply if transcription succeeds but TTS fails.
  * Falls back to an error message if transcription itself fails.
  */
