@@ -42,7 +42,7 @@ node ./bin/mateos.mjs dev
 ## Workspace Layout
 
 ```text
-MateOS-main/
+MateOS/
 ├── artifacts/api-server        # Express API
 ├── artifacts/bot-manager       # React dashboard
 ├── lib/db                      # Database schema and Drizzle config
@@ -116,11 +116,11 @@ When using OIDC, set:
 
 ## Vertical Starter Configs
 
-Starter templates live in [starter-configs](/Users/Hamzaa/Documents/MateOS/MateOS-main/starter-configs).
+Starter templates live in [`starter-configs/`](./starter-configs).
 
-- [restaurant-food.json](/Users/Hamzaa/Documents/MateOS/MateOS-main/starter-configs/restaurant-food.json)
-- [dental-doctors.json](/Users/Hamzaa/Documents/MateOS/MateOS-main/starter-configs/dental-doctors.json)
-- [coaches-consultants.json](/Users/Hamzaa/Documents/MateOS/MateOS-main/starter-configs/coaches-consultants.json)
+- [restaurant-food.json](./starter-configs/restaurant-food.json)
+- [dental-doctors.json](./starter-configs/dental-doctors.json)
+- [coaches-consultants.json](./starter-configs/coaches-consultants.json)
 
 Use them as starting points for:
 
@@ -138,5 +138,5 @@ Use them as starting points for:
 
 ## Docs
 
-- [Open Source Audit](/Users/Hamzaa/Documents/MateOS/MateOS-main/docs/open-source-audit.md)
-- [Architecture](/Users/Hamzaa/Documents/MateOS/MateOS-main/docs/architecture.md)
+- [Open Source Audit](./docs/open-source-audit.md)
+- [Architecture](./docs/architecture.md)
