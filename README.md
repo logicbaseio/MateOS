@@ -16,6 +16,29 @@ MateOS includes:
 - AI-assisted scheduling, conversation relay, and workflow tools
 - Optional Microsoft, Twilio, ElevenLabs, Hume, and Telegram integrations
 
+## One-Command Install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/logicbaseio/MateOS/main/install.sh)
+```
+
+That installer:
+
+- clones the MateOS repo locally
+- creates `.env` from `.env.example`
+- installs workspace dependencies with `pnpm`
+- starts PostgreSQL with Docker Compose
+- applies the database schema
+- shows the MateOS terminal logo and next steps
+
+After install, MateOS also ships with a local CLI:
+
+```bash
+cd MateOS
+node ./bin/mateos.mjs doctor
+node ./bin/mateos.mjs dev
+```
+
 ## Workspace Layout
 
 ```text
@@ -59,16 +82,22 @@ pnpm db:push
 ### 5. Start the API
 
 ```bash
-PORT=8080 pnpm dev:api
+pnpm dev:api
 ```
 
 ### 6. Start the dashboard
 
 ```bash
-PORT=5173 BASE_PATH=/ pnpm dev:web
+pnpm dev:web
 ```
 
 Open [http://localhost:5173](http://localhost:5173).
+
+### 7. Or start both with the MateOS CLI
+
+```bash
+node ./bin/mateos.mjs dev
+```
 
 ## Authentication Modes
 
@@ -111,4 +140,3 @@ Use them as starting points for:
 
 - [Open Source Audit](/Users/Hamzaa/Documents/MateOS/MateOS-main/docs/open-source-audit.md)
 - [Architecture](/Users/Hamzaa/Documents/MateOS/MateOS-main/docs/architecture.md)
-

@@ -22,7 +22,7 @@
 
   <!-- ═══════════════════════════════════════════════════
        SECTION 1: GREETINGS & COMMON RESPONSES
-       Words Zara uses in every conversation
+       Words the assistant uses in every conversation
        ═══════════════════════════════════════════════════ -->
 
   <!-- Yes / No / Agreement -->
@@ -330,7 +330,7 @@
 
   <!-- ═══════════════════════════════════════════════════
        SECTION 5: SCHEDULING & MEETING VOCABULARY
-       Words central to Zara's conversations
+       Words central to the assistant's conversations
        ═══════════════════════════════════════════════════ -->
 
   <lexeme>

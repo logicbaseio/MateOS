@@ -66,7 +66,10 @@ export async function loadNames(): Promise<{ bossName: string; botName: string }
 const LEGACY_BOT_NAMES = ["Zara", "MIRA", "Maddie"];
 
 export function applyNames(text: string, bossName: string, botName: string): string {
-  let result = text.replaceAll("Sunny", bossName);
+  let result = text
+    .replaceAll("{{bossName}}", bossName)
+    .replaceAll("{{botName}}", botName)
+    .replaceAll("Sunny", bossName);
   for (const legacy of LEGACY_BOT_NAMES) {
     if (legacy !== botName) {
       result = result.replaceAll(legacy, botName);
@@ -197,7 +200,7 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
         type: "object",
         properties: {
           bossName: { type: "string", description: "Boss's name (shown on dashboard and used in AI context)." },
-          botName: { type: "string", description: "AI assistant name (the bot's name customers see and hear, e.g. 'Zara')." },
+          botName: { type: "string", description: "AI assistant name (the bot's name customers see and hear)." },
           timezone: { type: "string", description: "IANA timezone string (e.g. 'America/New_York'). Derive from city/region if the user mentions a location." },
           currentCity: { type: "string", description: "Boss's current city" },
           mood: { type: "string", enum: ["available", "busy", "do_not_disturb", "flexible"], description: "Current availability mood" },
@@ -271,7 +274,7 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "get_soul",
-      description: "Read the current contents of soul.md — Zara's personality, rules, and memory.",
+      description: "Read the current contents of soul.md — the assistant's personality, rules, and memory.",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -279,7 +282,7 @@ export const BRAIN_TOOLS: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "update_soul",
-      description: "Rewrite soul.md with new personality instructions, rules, or memory for Zara.",
+      description: "Rewrite soul.md with new personality instructions, rules, or memory for the assistant.",
       parameters: {
         type: "object",
         properties: {
@@ -1607,7 +1610,7 @@ function sanitizeReply(text: string): string {
     .replace(/\u2013/g, "-");  // en-dash (–) → hyphen (safety net)
 }
 
-function buildChannelSystemPrompt(channelType: string, soulContent: string, timezoneContext?: string, mode: "boss" | "customer" = "customer", botName = "Zara", bossName = "Sunny"): string {
+function buildChannelSystemPrompt(channelType: string, soulContent: string, timezoneContext?: string, mode: "boss" | "customer" = "customer", botName = "Mate", bossName = "Owner"): string {
   // Substitute ALL legacy bot/boss names so the soul file always reflects the live configured names
   const substitutedSoul = applyNames(soulContent, bossName, botName);
   const soulSection = substitutedSoul

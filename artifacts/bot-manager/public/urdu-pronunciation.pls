@@ -18,7 +18,7 @@
 
   <!-- ═══════════════════════════════════════════════════
        SECTION 1: ROMAN URDU — CONVERSATIONAL WORDS
-       Words Zara uses when replying in Roman Urdu mode
+       Words the assistant uses when replying in Roman Urdu mode
        ═══════════════════════════════════════════════════ -->
 
   <!-- Yes / Agreement -->
@@ -607,12 +607,12 @@
        ═══════════════════════════════════════════════════ -->
 
   <lexeme>
-    <grapheme>Zara</grapheme>
+    <grapheme>Mate</grapheme>
     <alias>Zah-rah</alias>
   </lexeme>
   <lexeme>
-    <grapheme>Sunny</grapheme>
-    <alias>Sunny</alias>
+    <grapheme>Owner</grapheme>
+    <alias>Owner</alias>
   </lexeme>
   <lexeme>
     <grapheme>Ahmed</grapheme>

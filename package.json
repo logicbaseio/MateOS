@@ -1,9 +1,14 @@
 {
-  "name": "mateos-workspace",
+  "name": "mateos",
   "version": "0.1.0",
   "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mateos": "./bin/mateos.mjs"
+  },
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "mateos": "node ./bin/mateos.mjs",
     "dev:api": "pnpm --filter @workspace/api-server dev",
     "dev:web": "pnpm --filter @workspace/bot-manager dev",
     "db:push": "pnpm --filter @workspace/db push",
