@@ -125,6 +125,15 @@ function readEnvValue(root, key) {
   return match?.[1]?.trim() ?? null;
 }
 
+function withDatabaseEnv(root) {
+  const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(root, "DATABASE_URL");
+  if (!databaseUrl) return process.env;
+  return {
+    ...process.env,
+    DATABASE_URL: databaseUrl,
+  };
+}
+
 async function commandCreate(targetDir = "MateOS") {
   printLogo();
   const repoUrl = process.env.MATEOS_REPO_URL ?? DEFAULT_REPO_URL;
@@ -187,7 +196,10 @@ async function commandCreate(targetDir = "MateOS") {
   }
 
   console.log("Applying database schema");
-  await runCommand("pnpm", ["db:push"], { cwd: projectRoot });
+  await runCommand("pnpm", ["db:push"], {
+    cwd: projectRoot,
+    env: withDatabaseEnv(projectRoot),
+  });
 
   console.log("");
   console.log("MateOS is installed.");
@@ -288,7 +300,10 @@ async function startLocalhost(root = requireProjectRoot()) {
   }
 
   console.log("Applying database schema");
-  await runCommand("pnpm", ["db:push"], { cwd: root });
+  await runCommand("pnpm", ["db:push"], {
+    cwd: root,
+    env: withDatabaseEnv(root),
+  });
 
   const api = spawn("pnpm", ["dev:api"], {
     cwd: root,
