@@ -39,7 +39,7 @@ wait_for_docker() {
 wait_for_postgres() {
   printf 'Waiting for PostgreSQL to become ready\n'
   for _ in $(seq 1 45); do
-    if docker compose ps postgres >/dev/null 2>&1 && docker compose exec -T postgres pg_isready -U postgres -d mateos >/dev/null 2>&1; then
+    if docker compose ps postgres >/dev/null 2>&1 && docker compose exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
@@ -47,6 +47,15 @@ wait_for_postgres() {
 
   printf 'PostgreSQL did not become ready in time.\n' >&2
   exit 1
+}
+
+ensure_database_exists() {
+  local db_name="mateos"
+  printf 'Ensuring PostgreSQL database exists: %s\n' "$db_name"
+  if docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db_name}'" | grep -q 1; then
+    return 0
+  fi
+  docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE \"${db_name}\";"
 }
 
 need_cmd() {
@@ -94,6 +103,7 @@ printf 'Starting PostgreSQL with Docker Compose\n'
 wait_for_docker
 docker compose up -d
 wait_for_postgres
+ensure_database_exists
 
 printf 'Applying database schema\n'
 pnpm db:push

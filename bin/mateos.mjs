@@ -55,6 +55,10 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+function quoteSqlLiteral(value) {
+  return value.replace(/'/g, "''");
+}
+
 function runCommand(command, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(command, args, {
@@ -175,6 +179,57 @@ function withDatabaseEnv(root) {
   };
 }
 
+function getDatabaseConfig(root) {
+  const env = withDatabaseEnv(root);
+  const databaseUrl = env.DATABASE_URL;
+  if (!databaseUrl) return null;
+
+  try {
+    const parsed = new URL(databaseUrl);
+    return {
+      url: databaseUrl,
+      databaseName: parsed.pathname.replace(/^\//, "") || "postgres",
+      username: decodeURIComponent(parsed.username || "postgres"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function runCommandCapture(command, args, options = {}) {
+  return await new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd ?? process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      ...options,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", rejectPromise);
+    child.on("exit", (code, signal) => {
+      if (signal) {
+        rejectPromise(new Error(`${command} exited via signal ${signal}`));
+        return;
+      }
+      if ((code ?? 0) !== 0 && !options.allowNonZeroExit) {
+        rejectPromise(new Error(`${command} exited with code ${code ?? 0}: ${stderr.trim()}`));
+        return;
+      }
+      resolvePromise({ code: code ?? 0, stdout, stderr });
+    });
+  });
+}
+
 async function isCommandAvailable(command) {
   try {
     await runCommand(command, ["--version"], { stdio: "pipe" });
@@ -286,6 +341,55 @@ async function waitForDockerPostgres(root) {
   process.exit(1);
 }
 
+async function ensureDockerDatabaseExists(root) {
+  const config = getDatabaseConfig(root);
+  if (!config) return;
+
+  const databaseName = config.databaseName;
+  const username = config.username || "postgres";
+  const quotedDb = quoteSqlLiteral(databaseName);
+
+  console.log(`Ensuring PostgreSQL database exists: ${databaseName}`);
+
+  const existsResult = await runCommandCapture(
+    "docker",
+    [
+      "compose",
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-U",
+      username,
+      "-d",
+      "postgres",
+      "-tAc",
+      `SELECT 1 FROM pg_database WHERE datname='${quotedDb}'`,
+    ],
+    { cwd: root }
+  );
+
+  if (existsResult.stdout.trim() === "1") return;
+
+  await runCommand(
+    "docker",
+    [
+      "compose",
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-U",
+      username,
+      "-d",
+      "postgres",
+      "-c",
+      `CREATE DATABASE "${databaseName.replace(/"/g, "\"\"")}";`,
+    ],
+    { cwd: root }
+  );
+}
+
 async function waitForHttpReady(url, label) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < HTTP_READY_TIMEOUT_MS) {
@@ -364,6 +468,7 @@ async function commandCreate(targetDir = "MateOS") {
     console.log("Starting PostgreSQL with Docker Compose");
     await runCommand("docker", ["compose", "up", "-d"], { cwd: projectRoot });
     await waitForDockerPostgres(projectRoot);
+    await ensureDockerDatabaseExists(projectRoot);
   } else if (!databaseUrl) {
     console.error("Docker is not installed and no DATABASE_URL is configured.");
     console.error("Install Docker Desktop or set DATABASE_URL in .env, then rerun the setup.");
@@ -465,6 +570,7 @@ async function startLocalhost(root = requireProjectRoot()) {
     console.log("Starting PostgreSQL with Docker Compose");
     await runCommand("docker", ["compose", "up", "-d"], { cwd: root });
     await waitForDockerPostgres(root);
+    await ensureDockerDatabaseExists(root);
   } else if (!databaseUrl) {
     console.error("Docker is not installed and no DATABASE_URL is configured.");
     console.error("Set DATABASE_URL in .env to use an existing PostgreSQL instance.");
