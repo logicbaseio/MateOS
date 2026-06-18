@@ -1,6 +1,6 @@
 {
   "name": "@hamzaashergill/mateos",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "type": "module",
   "description": "MateOS bootstrap CLI and open-source assistant operations platform",

@@ -16,6 +16,9 @@ const GREEN = "\x1b[38;5;46m";
 const CYAN = "\x1b[38;5;51m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
+const DOCKER_START_TIMEOUT_MS = 90_000;
+const DB_READY_TIMEOUT_MS = 90_000;
+const HTTP_READY_TIMEOUT_MS = 90_000;
 
 const LOGO = [
   "##   ##   ####   #####  ######   ####    ####",
@@ -46,6 +49,10 @@ function printUsage() {
   console.log("  doctor   Check local prerequisites");
   console.log("  dev      Start API and dashboard together");
   console.log("  localhost  Start MateOS locally and print localhost URLs");
+}
+
+function sleep(ms) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 function runCommand(command, args, options = {}) {
@@ -134,6 +141,147 @@ function withDatabaseEnv(root) {
   };
 }
 
+async function isCommandAvailable(command) {
+  try {
+    await runCommand(command, ["--version"], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isDockerDaemonReady() {
+  try {
+    await runCommand("docker", ["info"], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureDockerReady() {
+  if (!(await isCommandAvailable("docker"))) return false;
+  if (await isDockerDaemonReady()) return true;
+
+  if (process.platform === "darwin") {
+    console.log("Starting Docker Desktop");
+    try {
+      await runCommand("open", ["-a", "Docker"], { stdio: "pipe", allowNonZeroExit: true });
+    } catch {
+      // Best effort only.
+    }
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < DOCKER_START_TIMEOUT_MS) {
+    if (await isDockerDaemonReady()) return true;
+    await sleep(2000);
+  }
+
+  console.error("Docker is installed but the Docker daemon is not ready.");
+  console.error("Start Docker Desktop, wait for it to finish booting, then rerun MateOS.");
+  process.exit(1);
+}
+
+async function waitForDockerPostgres(root) {
+  console.log("Waiting for PostgreSQL to become ready");
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < DB_READY_TIMEOUT_MS) {
+    try {
+      const child = spawn("docker", ["compose", "ps", "-q", "postgres"], {
+        cwd: root,
+        stdio: ["ignore", "pipe", "ignore"],
+        shell: false,
+      });
+
+      let output = "";
+      for await (const chunk of child.stdout) {
+        output += chunk.toString();
+      }
+
+      const exitCode = await new Promise((resolvePromise, rejectPromise) => {
+        child.on("error", rejectPromise);
+        child.on("exit", (code, signal) => {
+          if (signal) {
+            rejectPromise(new Error(`docker compose ps exited via signal ${signal}`));
+            return;
+          }
+          resolvePromise(code ?? 0);
+        });
+      });
+
+      const containerId = output.trim();
+      if (exitCode === 0 && containerId) {
+        const inspect = spawn("docker", ["inspect", "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}", containerId], {
+          cwd: root,
+          stdio: ["ignore", "pipe", "ignore"],
+          shell: false,
+        });
+
+        let inspectOutput = "";
+        for await (const chunk of inspect.stdout) {
+          inspectOutput += chunk.toString();
+        }
+
+        const inspectExit = await new Promise((resolvePromise, rejectPromise) => {
+          inspect.on("error", rejectPromise);
+          inspect.on("exit", (code, signal) => {
+            if (signal) {
+              rejectPromise(new Error(`docker inspect exited via signal ${signal}`));
+              return;
+            }
+            resolvePromise(code ?? 0);
+          });
+        });
+
+        const status = inspectOutput.trim();
+        if (inspectExit === 0 && (status === "healthy" || status === "running")) {
+          return;
+        }
+      }
+    } catch {
+      // Retry until timeout.
+    }
+
+    await sleep(2000);
+  }
+
+  console.error("PostgreSQL did not become ready in time.");
+  console.error("Run `docker compose ps` inside the MateOS folder to inspect the database container.");
+  process.exit(1);
+}
+
+async function waitForHttpReady(url, label) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < HTTP_READY_TIMEOUT_MS) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return true;
+    } catch {
+      // Retry until timeout.
+    }
+    await sleep(1000);
+  }
+
+  console.error(`${label} did not become reachable at ${url}`);
+  return false;
+}
+
+async function openBrowser(url) {
+  try {
+    if (process.platform === "darwin") {
+      await runCommand("open", [url], { stdio: "pipe", allowNonZeroExit: true });
+    } else if (process.platform === "win32") {
+      await runCommand("cmd", ["/c", "start", "", url], { stdio: "pipe", allowNonZeroExit: true });
+    } else {
+      await runCommand("xdg-open", [url], { stdio: "pipe", allowNonZeroExit: true });
+    }
+  } catch {
+    // Best effort only.
+  }
+}
+
 async function commandCreate(targetDir = "MateOS") {
   printLogo();
   const repoUrl = process.env.MATEOS_REPO_URL ?? DEFAULT_REPO_URL;
@@ -176,17 +324,12 @@ async function commandCreate(targetDir = "MateOS") {
   await runCommand("pnpm", ["install"], { cwd: projectRoot });
 
   const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(projectRoot, "DATABASE_URL");
-  let hasDocker = false;
-  try {
-    await runCommand("docker", ["--version"], { stdio: "pipe" });
-    hasDocker = true;
-  } catch {
-    hasDocker = false;
-  }
+  const hasDocker = await ensureDockerReady();
 
   if (hasDocker) {
     console.log("Starting PostgreSQL with Docker Compose");
     await runCommand("docker", ["compose", "up", "-d"], { cwd: projectRoot });
+    await waitForDockerPostgres(projectRoot);
   } else if (!databaseUrl) {
     console.error("Docker is not installed and no DATABASE_URL is configured.");
     console.error("Install Docker Desktop or set DATABASE_URL in .env, then rerun the setup.");
@@ -282,17 +425,12 @@ async function startLocalhost(root = requireProjectRoot()) {
   }
 
   const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(root, "DATABASE_URL");
-  let hasDocker = false;
-  try {
-    await runCommand("docker", ["--version"], { stdio: "pipe" });
-    hasDocker = true;
-  } catch {
-    hasDocker = false;
-  }
+  const hasDocker = await ensureDockerReady();
 
   if (hasDocker) {
     console.log("Starting PostgreSQL with Docker Compose");
     await runCommand("docker", ["compose", "up", "-d"], { cwd: root });
+    await waitForDockerPostgres(root);
   } else if (!databaseUrl) {
     console.error("Docker is not installed and no DATABASE_URL is configured.");
     console.error("Set DATABASE_URL in .env to use an existing PostgreSQL instance.");
@@ -338,6 +476,11 @@ async function startLocalhost(root = requireProjectRoot()) {
   console.log(`MateOS API: ${DEFAULT_API_URL}`);
   console.log(`MateOS Web: ${DEFAULT_WEB_URL}`);
   console.log(`Brain API: ${DEFAULT_API_URL}/api/brain/chat`);
+  console.log("Waiting for MateOS services");
+  await waitForHttpReady(`${DEFAULT_API_URL}/api/healthz`, "MateOS API");
+  await waitForHttpReady(DEFAULT_WEB_URL, "MateOS Web");
+  await openBrowser(DEFAULT_WEB_URL);
+  console.log(`Opened MateOS in your browser: ${DEFAULT_WEB_URL}`);
   console.log("Press Ctrl+C to stop.");
 }
 

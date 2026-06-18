@@ -15,6 +15,40 @@ print_logo() {
   printf '%b\n\n' "${CYAN}MateOS${RESET} ${DIM}assistant operations platform${RESET}"
 }
 
+wait_for_docker() {
+  if docker info >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ "$(uname -s)" = "Darwin" ]; then
+    printf 'Starting Docker Desktop\n'
+    open -a Docker >/dev/null 2>&1 || true
+  fi
+
+  for _ in $(seq 1 45); do
+    if docker info >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  printf 'Docker is installed but not ready. Start Docker Desktop and rerun MateOS.\n' >&2
+  exit 1
+}
+
+wait_for_postgres() {
+  printf 'Waiting for PostgreSQL to become ready\n'
+  for _ in $(seq 1 45); do
+    if docker compose ps postgres >/dev/null 2>&1 && docker compose exec -T postgres pg_isready -U postgres -d mateos >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  printf 'PostgreSQL did not become ready in time.\n' >&2
+  exit 1
+}
+
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf 'Missing required command: %s\n' "$1" >&2
@@ -57,13 +91,13 @@ printf 'Installing workspace dependencies\n'
 pnpm install
 
 printf 'Starting PostgreSQL with Docker Compose\n'
+wait_for_docker
 docker compose up -d
+wait_for_postgres
 
 printf 'Applying database schema\n'
 pnpm db:push
 
 printf '\nMateOS is installed.\n'
-printf 'Next steps:\n'
-printf '  cd %s\n' "$TARGET_DIR"
-printf '  node ./bin/mateos.mjs doctor\n'
-printf '  node ./bin/mateos.mjs dev\n'
+printf 'Starting MateOS on localhost\n'
+node ./bin/mateos.mjs localhost

@@ -28,7 +28,10 @@ By default, that command will:
 
 - create `./MateOS` if it does not exist
 - reuse `./MateOS` if it already exists
+- start Docker Desktop if needed on macOS
+- wait for PostgreSQL to become ready
 - start MateOS on localhost after setup
+- open the dashboard in your browser automatically
 
 Or install into a custom directory:
 
@@ -50,14 +53,18 @@ Both install paths do the same bootstrap work:
 - creates `.env` from `.env.example`
 - installs workspace dependencies with `pnpm`
 - starts PostgreSQL with Docker Compose
+- waits for PostgreSQL readiness
 - applies the database schema
-- shows the MateOS terminal logo and next steps
+- starts the full MateOS stack on localhost
+- opens the dashboard in your browser
 
 The npm CLI also supports:
 
 - terminal Brain chat
 - localhost startup for the full MateOS stack
 - Docker-optional setup when `DATABASE_URL` is already configured
+
+For the default zero-manual-setup path, install Docker Desktop and let MateOS manage the local Postgres container for you.
 
 After install, MateOS also ships with a local CLI:
 
