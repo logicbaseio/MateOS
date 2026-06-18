@@ -1,6 +1,6 @@
 {
   "name": "@hamzaashergill/mateos",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "license": "MIT",
   "type": "module",
   "description": "MateOS bootstrap CLI and open-source assistant operations platform",
@@ -20,7 +20,7 @@
     "reception",
     "scheduling"
   ],
-  "bin": "mateos.js",
+  "bin": "./mateos.js",
   "files": [
     "bin",
     "mateos.js",
