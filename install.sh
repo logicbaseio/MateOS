@@ -115,6 +115,12 @@ if [ ! -f .env ]; then
   printf 'Created .env from .env.example\n'
 fi
 
+if grep -Eq '^DATABASE_URL=postgres://postgres:postgres@(localhost|127\.0\.0\.1):5432/mateos$' .env; then
+  sed -i.bak 's#^DATABASE_URL=postgres://postgres:postgres@.*:5432/mateos$#DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/mateos#' .env
+  rm -f .env.bak
+  printf 'Updated .env DATABASE_URL to postgres://postgres:postgres@127.0.0.1:55432/mateos\n'
+fi
+
 printf 'Installing workspace dependencies\n'
 pnpm install
 

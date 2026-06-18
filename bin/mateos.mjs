@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFileSync, existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { dirname, resolve, join } from "node:path";
@@ -20,6 +20,7 @@ const DOCKER_START_TIMEOUT_MS = 90_000;
 const DB_READY_TIMEOUT_MS = 90_000;
 const HTTP_READY_TIMEOUT_MS = 90_000;
 const DOCKER_DESKTOP_BIN = "/Applications/Docker.app/Contents/Resources/bin/docker";
+const DOCKER_DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:55432/mateos";
 let dockerCommand = null;
 
 const LOGO = [
@@ -162,6 +163,22 @@ function loadEnvFile(root) {
   }
 
   return vars;
+}
+
+function ensureDockerDatabaseUrl(root) {
+  const envPath = resolve(root, ".env");
+  if (!existsSync(envPath)) return;
+
+  const content = readFileSync(envPath, "utf8");
+  const updated = content.replace(
+    /^DATABASE_URL=postgres:\/\/postgres:postgres@(localhost|127\.0\.0\.1):5432\/mateos$/m,
+    `DATABASE_URL=${DOCKER_DATABASE_URL}`,
+  );
+
+  if (updated !== content) {
+    writeFileSync(envPath, updated);
+    console.log(`Updated .env DATABASE_URL to ${DOCKER_DATABASE_URL}`);
+  }
 }
 
 function withProjectEnv(root) {
@@ -488,6 +505,7 @@ async function commandCreate(targetDir = "MateOS") {
     copyFileSync(envExamplePath, envPath);
     console.log("Created .env from .env.example");
   }
+  ensureDockerDatabaseUrl(projectRoot);
 
   console.log("Installing workspace dependencies");
   await runCommand("pnpm", ["install"], { cwd: projectRoot });
@@ -595,6 +613,7 @@ async function startLocalhost(root = requireProjectRoot()) {
     copyFileSync(resolve(root, ".env.example"), resolve(root, ".env"));
     console.log("Created .env from .env.example");
   }
+  ensureDockerDatabaseUrl(root);
 
   const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(root, "DATABASE_URL");
   const hasDocker = await ensureDockerReady();
