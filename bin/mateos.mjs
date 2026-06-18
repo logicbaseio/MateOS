@@ -132,11 +132,45 @@ function readEnvValue(root, key) {
   return match?.[1]?.trim() ?? null;
 }
 
-function withDatabaseEnv(root) {
-  const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(root, "DATABASE_URL");
-  if (!databaseUrl) return process.env;
+function loadEnvFile(root) {
+  const envPath = resolve(root, ".env");
+  if (!existsSync(envPath)) return {};
+
+  const content = readFileSync(envPath, "utf8");
+  const vars = {};
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const equalsIndex = line.indexOf("=");
+    if (equalsIndex <= 0) continue;
+    const key = line.slice(0, equalsIndex).trim();
+    let value = line.slice(equalsIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    vars[key] = value;
+  }
+
+  return vars;
+}
+
+function withProjectEnv(root) {
   return {
+    ...loadEnvFile(root),
     ...process.env,
+  };
+}
+
+function withDatabaseEnv(root) {
+  const env = withProjectEnv(root);
+  const databaseUrl = process.env.DATABASE_URL ?? env.DATABASE_URL;
+  if (!databaseUrl) return env;
+  return {
+    ...env,
     DATABASE_URL: databaseUrl,
   };
 }
@@ -447,12 +481,14 @@ async function startLocalhost(root = requireProjectRoot()) {
     cwd: root,
     stdio: "inherit",
     shell: false,
+    env: withProjectEnv(root),
   });
 
   const web = spawn("pnpm", ["dev:web"], {
     cwd: root,
     stdio: "inherit",
     shell: false,
+    env: withProjectEnv(root),
   });
 
   const shutdown = (code = 0) => {
