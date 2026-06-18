@@ -19,6 +19,8 @@ const RESET = "\x1b[0m";
 const DOCKER_START_TIMEOUT_MS = 90_000;
 const DB_READY_TIMEOUT_MS = 90_000;
 const HTTP_READY_TIMEOUT_MS = 90_000;
+const DOCKER_DESKTOP_BIN = "/Applications/Docker.app/Contents/Resources/bin/docker";
+let dockerCommand = null;
 
 const LOGO = [
   "##   ##   ####   #####  ######   ####    ####",
@@ -239,9 +241,38 @@ async function isCommandAvailable(command) {
   }
 }
 
+async function resolveDockerCommand() {
+  if (dockerCommand) return dockerCommand;
+  if (await isCommandAvailable("docker")) {
+    dockerCommand = "docker";
+    return dockerCommand;
+  }
+  if (process.platform === "darwin" && existsSync(DOCKER_DESKTOP_BIN)) {
+    dockerCommand = DOCKER_DESKTOP_BIN;
+    return dockerCommand;
+  }
+  return null;
+}
+
+async function runDocker(args, options = {}) {
+  const command = await resolveDockerCommand();
+  if (!command) {
+    throw new Error("Docker Desktop is installed but the docker CLI could not be found.");
+  }
+  return await runCommand(command, args, options);
+}
+
+async function runDockerCapture(args, options = {}) {
+  const command = await resolveDockerCommand();
+  if (!command) {
+    throw new Error("Docker Desktop is installed but the docker CLI could not be found.");
+  }
+  return await runCommandCapture(command, args, options);
+}
+
 async function isDockerDaemonReady() {
   try {
-    await runCommand("docker", ["info"], { stdio: "pipe" });
+    await runDocker(["info"], { stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -249,7 +280,7 @@ async function isDockerDaemonReady() {
 }
 
 async function ensureDockerReady() {
-  if (!(await isCommandAvailable("docker"))) return false;
+  if (!(await resolveDockerCommand())) return false;
   if (await isDockerDaemonReady()) return true;
 
   if (process.platform === "darwin") {
@@ -278,7 +309,9 @@ async function waitForDockerPostgres(root) {
 
   while (Date.now() - startedAt < DB_READY_TIMEOUT_MS) {
     try {
-      const child = spawn("docker", ["compose", "ps", "-q", "postgres"], {
+      const command = await resolveDockerCommand();
+      if (!command) throw new Error("Docker command missing");
+      const child = spawn(command, ["compose", "ps", "-q", "postgres"], {
         cwd: root,
         stdio: ["ignore", "pipe", "ignore"],
         shell: false,
@@ -302,7 +335,7 @@ async function waitForDockerPostgres(root) {
 
       const containerId = output.trim();
       if (exitCode === 0 && containerId) {
-        const inspect = spawn("docker", ["inspect", "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}", containerId], {
+        const inspect = spawn(command, ["inspect", "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}", containerId], {
           cwd: root,
           stdio: ["ignore", "pipe", "ignore"],
           shell: false,
@@ -337,7 +370,7 @@ async function waitForDockerPostgres(root) {
   }
 
   console.error("PostgreSQL did not become ready in time.");
-  console.error("Run `docker compose ps` inside the MateOS folder to inspect the database container.");
+  console.error("Run `node ./bin/mateos.mjs doctor` inside the MateOS folder to inspect local setup.");
   process.exit(1);
 }
 
@@ -351,8 +384,7 @@ async function ensureDockerDatabaseExists(root) {
 
   console.log(`Ensuring PostgreSQL database exists: ${databaseName}`);
 
-  const existsResult = await runCommandCapture(
-    "docker",
+  const existsResult = await runDockerCapture(
     [
       "compose",
       "exec",
@@ -371,8 +403,7 @@ async function ensureDockerDatabaseExists(root) {
 
   if (existsResult.stdout.trim() === "1") return;
 
-  await runCommand(
-    "docker",
+  await runDocker(
     [
       "compose",
       "exec",
@@ -466,7 +497,7 @@ async function commandCreate(targetDir = "MateOS") {
 
   if (hasDocker) {
     console.log("Starting PostgreSQL with Docker Compose");
-    await runCommand("docker", ["compose", "up", "-d"], { cwd: projectRoot });
+    await runDocker(["compose", "up", "-d"], { cwd: projectRoot });
     await waitForDockerPostgres(projectRoot);
     await ensureDockerDatabaseExists(projectRoot);
   } else if (!databaseUrl) {
@@ -512,7 +543,7 @@ async function commandDoctor() {
     ["node", ["--version"]],
     ["pnpm", ["--version"]],
   ];
-  const optionalChecks = [["docker", ["--version"]]];
+  const dockerCli = await resolveDockerCommand();
 
   let failed = false;
 
@@ -532,13 +563,15 @@ async function commandDoctor() {
   }
 
   const databaseUrl = process.env.DATABASE_URL ?? readEnvValue(root, "DATABASE_URL");
-  for (const [command, args] of optionalChecks) {
+  if (dockerCli) {
     try {
-      const code = await runCommand(command, args, { cwd: root, stdio: "pipe", allowNonZeroExit: true });
-      console.log(`${command}: ${code === 0 ? "ok" : "failed"}`);
+      const code = await runCommand(dockerCli, ["--version"], { cwd: root, stdio: "pipe", allowNonZeroExit: true });
+      console.log(`docker: ${code === 0 ? "ok" : "failed"} (${dockerCli})`);
     } catch {
-      console.log(`${command}: optional`);
+      console.log("docker: optional");
     }
+  } else {
+    console.log("docker: optional");
   }
   console.log(`database: ${databaseUrl ? "configured" : "missing"}`);
 
@@ -568,7 +601,7 @@ async function startLocalhost(root = requireProjectRoot()) {
 
   if (hasDocker) {
     console.log("Starting PostgreSQL with Docker Compose");
-    await runCommand("docker", ["compose", "up", "-d"], { cwd: root });
+    await runDocker(["compose", "up", "-d"], { cwd: root });
     await waitForDockerPostgres(root);
     await ensureDockerDatabaseExists(root);
   } else if (!databaseUrl) {

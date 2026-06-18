@@ -5,6 +5,21 @@ GREEN='\033[38;5;46m'
 CYAN='\033[38;5;51m'
 DIM='\033[2m'
 RESET='\033[0m'
+DOCKER_CMD="${DOCKER_CMD:-docker}"
+
+resolve_docker() {
+  if command -v docker >/dev/null 2>&1; then
+    DOCKER_CMD="docker"
+    return 0
+  fi
+
+  if [ -x /Applications/Docker.app/Contents/Resources/bin/docker ]; then
+    DOCKER_CMD="/Applications/Docker.app/Contents/Resources/bin/docker"
+    return 0
+  fi
+
+  return 1
+}
 
 print_logo() {
   printf '\n%b\n' "${GREEN}##   ##   ####   #####  ######   ####    ####${RESET}"
@@ -16,7 +31,7 @@ print_logo() {
 }
 
 wait_for_docker() {
-  if docker info >/dev/null 2>&1; then
+  if "$DOCKER_CMD" info >/dev/null 2>&1; then
     return 0
   fi
 
@@ -26,7 +41,7 @@ wait_for_docker() {
   fi
 
   for _ in $(seq 1 45); do
-    if docker info >/dev/null 2>&1; then
+    if "$DOCKER_CMD" info >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
@@ -39,7 +54,7 @@ wait_for_docker() {
 wait_for_postgres() {
   printf 'Waiting for PostgreSQL to become ready\n'
   for _ in $(seq 1 45); do
-    if docker compose ps postgres >/dev/null 2>&1 && docker compose exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+    if "$DOCKER_CMD" compose ps postgres >/dev/null 2>&1 && "$DOCKER_CMD" compose exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
@@ -52,10 +67,10 @@ wait_for_postgres() {
 ensure_database_exists() {
   local db_name="mateos"
   printf 'Ensuring PostgreSQL database exists: %s\n' "$db_name"
-  if docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db_name}'" | grep -q 1; then
+  if "$DOCKER_CMD" compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db_name}'" | grep -q 1; then
     return 0
   fi
-  docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE \"${db_name}\";"
+  "$DOCKER_CMD" compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE \"${db_name}\";"
 }
 
 need_cmd() {
@@ -71,7 +86,11 @@ REPO_URL="${MATEOS_REPO_URL:-https://github.com/logicbaseio/MateOS.git}"
 print_logo
 need_cmd git
 need_cmd node
-need_cmd docker
+if ! resolve_docker; then
+  printf 'Missing required command: docker\n' >&2
+  printf 'Install Docker Desktop, then rerun MateOS.\n' >&2
+  exit 1
+fi
 
 if ! command -v pnpm >/dev/null 2>&1; then
   if command -v corepack >/dev/null 2>&1; then
@@ -101,7 +120,7 @@ pnpm install
 
 printf 'Starting PostgreSQL with Docker Compose\n'
 wait_for_docker
-docker compose up -d
+"$DOCKER_CMD" compose up -d
 wait_for_postgres
 ensure_database_exists
 
